@@ -24,12 +24,13 @@ Foundation phase (Identity, User, Vendor, Product Marketplace, Orders):
 | 02 | [Software Requirements Specification (SRS) — Core](docs/02-srs-core.md) |
 | 03 | [System Architecture](docs/03-system-architecture.md) |
 | 04–06 | [Database Architecture & ERDs](docs/04-database-architecture-and-erd.md) |
+| 07 | [API Specifications](docs/07-api-specifications.md) |
 
-Volumes 07–16 (API Specs, Frontend/Backend Architecture, AI Platform,
-Marketing Automation, Admin Panel, Security, Testing, DevOps, Coding
-Agent Manual) and the deferred modules (Services Marketplace, Community,
-CMS) are scoped for a second documentation pass once the foundation phase
-is implemented — see [docs/00-project-constitution.md](docs/00-project-constitution.md) §13.
+Volumes 08–16 (Frontend/Backend Architecture, AI Platform, Marketing
+Automation, Admin Panel, Security, Testing, DevOps, Coding Agent Manual)
+and the deferred modules (Services Marketplace, Community, CMS) are
+scoped for a second documentation pass once the foundation phase is
+implemented — see [docs/00-project-constitution.md](docs/00-project-constitution.md) §13.
 
 ## Status
 
