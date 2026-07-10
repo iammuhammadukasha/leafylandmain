@@ -1,0 +1,249 @@
+// LeafyLand v2 — Prisma schema
+// Scope: Identity context (Volume 04 §2) + User context (Volume 04 §3),
+// foundation-phase vertical slice only (register -> verify -> login -> profile).
+// Vendor / Product / Orders contexts are NOT modeled here yet — those FKs
+// (vendors.id, products.id) are deliberately absent; user_roles.vendor_id
+// and wishlists.product_id will be added when the Vendor / Product
+// Marketplace modules are scaffolded, per Constitution §11.6 (no
+// speculative abstraction).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext]
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum AuthProvider {
+  password
+  google
+  otp
+}
+
+enum RoleName {
+  shopper
+  vendor_owner
+  vendor_staff
+  admin
+  super_admin
+}
+
+enum AddressType {
+  billing
+  shipping
+}
+
+// ---------------------------------------------------------------------------
+// Identity context (Volume 04 §2)
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  email           String     @unique @db.Citext
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz
+  phone           String?    @unique
+  passwordHash    String?    @map("password_hash")
+  status          UserStatus @default(active)
+  mfaEnabled      Boolean    @default(false) @map("mfa_enabled")
+
+  // Standard columns (Constitution §7)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  authIdentities AuthIdentity[]
+  sessions       Session[]
+  userRoles      UserRole[]
+  mfaSecret      MfaSecret?
+  profile        UserProfile?
+  addresses      Address[]
+  auditLogs      AuditLog[]     @relation("AuditLogActor")
+
+  @@map("users")
+}
+
+// no soft delete: pure login-method linkage record (Volume 04 §2)
+model AuthIdentity {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  provider       AuthProvider
+  providerUserId String?      @map("provider_user_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("auth_identities")
+}
+
+// no soft delete, seed data (Volume 04 §2)
+model Role {
+  id   String   @id @default(uuid()) @db.Uuid
+  name RoleName @unique
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+// no soft delete (Volume 04 §2)
+// vendorId is left nullable with no FK yet — Vendor context does not exist
+// in this slice. When Vendor module lands, add `vendor Vendor?
+// @relation(fields: [vendorId], references: [id])`.
+//
+// DEVIATION from Volume 04 §2: the doc specifies
+// `PRIMARY KEY(user_id, role_id, vendor_id)` with vendor_id nullable.
+// Standard SQL (and Prisma) require every column in a composite primary
+// key to be NOT NULL, so a nullable column cannot participate in a PK —
+// this is a genuine inconsistency in the source doc, not implementer
+// preference. Fixed here with a surrogate `id` PK plus a unique
+// constraint using `COALESCE`-free nullable-safe indexing: Postgres
+// treats NULLs as distinct in unique indexes, which reproduces the
+// intended "one row per (user, role, vendor-or-global)" semantics.
+model UserRole {
+  id       String  @id @default(uuid()) @db.Uuid
+  userId   String  @map("user_id") @db.Uuid
+  roleId   String  @map("role_id") @db.Uuid
+  vendorId String? @map("vendor_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId, vendorId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash")
+  deviceLabel      String?   @map("device_label")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent")
+  familyId         String    @map("family_id") @db.Uuid
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("sessions")
+}
+
+// no soft delete (Volume 04 §2)
+model MfaSecret {
+  id                  String @id @default(uuid()) @db.Uuid
+  userId              String @unique @map("user_id") @db.Uuid
+  totpSecretEncrypted String @map("totp_secret_encrypted")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("mfa_secrets")
+}
+
+// append-only, no update/delete (Volume 04 §2)
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  diff        Json?
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor User? @relation("AuditLogActor", fields: [actorUserId], references: [id])
+
+  @@index([actorUserId])
+  @@index([targetType, targetId])
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// User context (Volume 04 §3) — profile + addresses only for this slice.
+// wishlists / notification_preferences deferred: they FK into products.id
+// (Product Marketplace, not built yet) or add no architectural proof value
+// for this vertical slice; skipped per task scope, not per doc omission.
+// ---------------------------------------------------------------------------
+
+model UserProfile {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  fullName        String?   @map("full_name")
+  avatarUrl       String?   @map("avatar_url")
+  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
+  phoneVerifiedAt DateTime? @map("phone_verified_at") @db.Timestamptz
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+}
+
+model Address {
+  id         String      @id @default(uuid()) @db.Uuid
+  userId     String      @map("user_id") @db.Uuid
+  type       AddressType
+  isDefault  Boolean     @default(false) @map("is_default")
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String      @map("postal_code")
+  country    String
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("addresses")
+}

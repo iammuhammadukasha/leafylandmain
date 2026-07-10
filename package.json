@@ -1,0 +1,20 @@
+{
+  "name": "leafyland-v2",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LeafyLand v2 monorepo — NestJS backend (server) + Next.js frontend (web)",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev:server": "npm run start:dev --workspace=server",
+    "dev:web": "npm run dev --workspace=web",
+    "build:server": "npm run build --workspace=server",
+    "build:web": "npm run build --workspace=web",
+    "test:server": "npm run test --workspace=server"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

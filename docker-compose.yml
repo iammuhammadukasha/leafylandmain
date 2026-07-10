@@ -1,0 +1,38 @@
+name: leafyland-v2
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: leafyland-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: leafyland
+      POSTGRES_PASSWORD: leafyland
+      POSTGRES_DB: leafyland
+    ports:
+      - "5432:5432"
+    volumes:
+      - leafyland_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leafyland -d leafyland"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: leafyland-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - leafyland_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  leafyland_postgres_data:
+  leafyland_redis_data:
