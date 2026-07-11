@@ -1,16 +1,25 @@
 // LeafyLand v2 — Prisma schema
 // Scope: Identity context (Volume 04 §2) + User context (Volume 04 §3) +
-// Vendor context (Volume 04 §4, registration/verification/store-profile
-// vertical slice only). Product / Orders contexts are NOT modeled here yet
-// — those FKs (products.id) are deliberately absent; wishlists.product_id
-// will be added when Product Marketplace is scaffolded, per Constitution
-// §11.6 (no speculative abstraction).
+// Vendor context (Volume 04 §4, registration/verification/store-profile +
+// minimal vendor_documents) + Product Marketplace context (Volume 04 §5,
+// categories/products/variants vertical slice). Orders context is NOT
+// modeled here yet — wishlists.product_id etc. will be added when Orders
+// is scaffolded, per Constitution §11.6 (no speculative abstraction).
 //
 // Vendor context slice covers FR-VND-001 (register), FR-VND-002 (admin
-// verify), FR-VND-003 (store profile update via PATCH /vendors/me), and
-// GET /vendors/me. vendor_documents, vendor_staff_invitations, and
-// vendor_wallet_ledger (Volume 04 §4) are deliberately NOT modeled — they
-// back FR-VND-004/006/008 which are out of scope for this slice.
+// verify), FR-VND-003 (store profile update via PATCH /vendors/me),
+// GET /vendors/me, and a minimal FR-VND-008 (vendor_documents: create/list/
+// admin-approve — no reject variant, no file upload, no expiry reminders).
+// vendor_staff_invitations and vendor_wallet_ledger (Volume 04 §4) remain
+// deliberately NOT modeled — they back FR-VND-004/006 which are out of
+// scope for this slice.
+//
+// Product Marketplace context slice covers FR-PRD-001 (categories only —
+// brands deferred), FR-PRD-002 (products + variants), and FR-VND-005
+// (vendor-side product management), including the BR-PRD-01/BR-VND-02
+// cross-context organic-claim rule. See final report for the full deferred
+// list (offers/coupons, reviews/questions, search, recommendations,
+// compare, brands CRUD).
 
 generator client {
   provider        = "prisma-client-js"
@@ -57,6 +66,24 @@ enum VendorStatus {
   verified
   rejected
   revoked
+}
+
+enum VendorDocumentType {
+  business_registration
+  organic_certificate
+  other
+}
+
+enum VendorDocumentReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ProductStatus {
+  draft
+  active
+  delisted
 }
 
 // ---------------------------------------------------------------------------
@@ -297,9 +324,129 @@ model Vendor {
   updatedBy String?   @map("updated_by") @db.Uuid
   version   Int       @default(1)
 
-  owner     User       @relation(fields: [ownerUserId], references: [id])
+  owner     User             @relation(fields: [ownerUserId], references: [id])
   userRoles UserRole[]
+  documents VendorDocument[]
+  products  Product[]
 
   @@index([ownerUserId])
   @@map("vendors")
+}
+
+// FR-VND-008 (minimal slice) — vendor business/certification documents.
+// Added alongside Product Marketplace because BR-PRD-01/BR-VND-02 (organic
+// claim requires an approved organic_certificate document) is the cross-
+// context rule this slice exists to prove; file upload/S3 integration is
+// out of scope — fileUrl just accepts a string URL (see Volume 07 §4.1
+// note re-read for this slice).
+model VendorDocument {
+  id           String                     @id @default(uuid()) @db.Uuid
+  vendorId     String                     @map("vendor_id") @db.Uuid
+  type         VendorDocumentType
+  fileUrl      String                     @map("file_url")
+  reviewStatus VendorDocumentReviewStatus @default(pending) @map("review_status")
+  expiresAt    DateTime?                  @map("expires_at") @db.Timestamptz
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  vendor   Vendor    @relation(fields: [vendorId], references: [id])
+  products Product[]
+
+  @@index([vendorId])
+  @@map("vendor_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Product Marketplace context (Volume 04 §5) — categories/products/variants
+// vertical slice only (FR-PRD-001/002, FR-VND-005). `brands` table is
+// deliberately NOT modeled this slice — brandId kept nullable on Product
+// with no FK, so brand CRUD can be added later without a data migration;
+// offers/coupons/reviews are out of scope (see final report for the full
+// deferred list).
+// ---------------------------------------------------------------------------
+
+// Hierarchical categories, max depth 3 enforced in the application layer
+// (not the DB — Volume 04 §5 note), self-referential tree.
+model Category {
+  id         String  @id @default(uuid()) @db.Uuid
+  parentId   String? @map("parent_id") @db.Uuid
+  name       String
+  slug       String  @unique
+  taxRateBps Int     @map("tax_rate_bps")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Product {
+  id                    String        @id @default(uuid()) @db.Uuid
+  vendorId              String        @map("vendor_id") @db.Uuid
+  categoryId            String        @map("category_id") @db.Uuid
+  // brands table intentionally not modeled this slice (see file header) —
+  // brandId kept as a bare nullable column, no FK, so no brand row can be
+  // referenced yet. Every product is created with brandId = null.
+  brandId               String?       @map("brand_id") @db.Uuid
+  title                 String
+  description           String?
+  isOrganicClaim        Boolean       @default(false) @map("is_organic_claim")
+  // Required when isOrganicClaim = true; enforced in the application layer
+  // per BR-PRD-01 (ties to BR-VND-02), not a DB CHECK constraint.
+  organicCertDocumentId String?       @map("organic_cert_document_id") @db.Uuid
+  status                ProductStatus @default(draft)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  vendor              Vendor           @relation(fields: [vendorId], references: [id])
+  category            Category         @relation(fields: [categoryId], references: [id])
+  organicCertDocument VendorDocument?  @relation(fields: [organicCertDocumentId], references: [id])
+  variants            ProductVariant[]
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([organicCertDocumentId])
+  @@index([status])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                String @id @default(uuid()) @db.Uuid
+  productId         String @map("product_id") @db.Uuid
+  sku               String @unique
+  attributes        Json
+  priceMinor        BigInt @map("price_minor")
+  stockQuantity     Int    @map("stock_quantity")
+  lowStockThreshold Int    @map("low_stock_threshold")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@map("product_variants")
 }

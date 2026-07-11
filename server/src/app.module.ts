@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { UserModule } from './modules/user/user.module';
 import { VendorModule } from './modules/vendor/vendor.module';
+import { ProductModule } from './modules/product/product.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { VendorModule } from './modules/vendor/vendor.module';
     IdentityModule,
     UserModule,
     VendorModule,
+    ProductModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

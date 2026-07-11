@@ -95,3 +95,109 @@ export interface UpdateVendorRequest {
   logoUrl?: string | null;
   bannerUrl?: string | null;
 }
+
+// Vendor documents (API Spec Volume 07 §4.1, FR-VND-008 minimal slice).
+export type VendorDocumentType =
+  | 'business_registration'
+  | 'organic_certificate'
+  | 'other';
+
+export type VendorDocumentReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface CreateVendorDocumentRequest {
+  type: VendorDocumentType;
+  fileUrl: string;
+  expiresAt?: string;
+}
+
+export interface VendorDocumentResponse {
+  id: string;
+  vendorId: string;
+  type: VendorDocumentType;
+  fileUrl: string;
+  reviewStatus: VendorDocumentReviewStatus;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Product Marketplace module (API Spec Volume 07 §5) — categories/
+// products/variants vertical slice.
+export interface CategoryResponse {
+  id: string;
+  parentId: string | null;
+  name: string;
+  slug: string;
+  taxRateBps: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCategoryRequest {
+  parentId?: string | null;
+  name: string;
+  slug: string;
+  taxRateBps: number;
+}
+
+export type ProductStatus = 'draft' | 'active' | 'delisted';
+
+export interface ProductResponse {
+  id: string;
+  vendorId: string;
+  categoryId: string;
+  brandId: string | null;
+  title: string;
+  description: string | null;
+  isOrganicClaim: boolean;
+  organicCertDocumentId: string | null;
+  status: ProductStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProductRequest {
+  categoryId: string;
+  brandId?: string | null;
+  title: string;
+  description?: string;
+  isOrganicClaim: boolean;
+  organicCertDocumentId?: string;
+}
+
+export interface UpdateProductRequest {
+  categoryId?: string;
+  brandId?: string | null;
+  title?: string;
+  description?: string | null;
+}
+
+export interface ProductVariantResponse {
+  id: string;
+  productId: string;
+  sku: string;
+  attributes: Record<string, unknown>;
+  priceMinor: string;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProductVariantRequest {
+  sku: string;
+  attributes?: Record<string, unknown>;
+  priceMinor: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
+}
+
+export interface ProductListMeta {
+  nextCursor: string | null;
+  count: number;
+}
+
+export interface ProductListResponse {
+  items: ProductResponse[];
+  meta: ProductListMeta;
+}

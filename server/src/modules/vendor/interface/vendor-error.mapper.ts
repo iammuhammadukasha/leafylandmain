@@ -6,6 +6,7 @@ import {
 } from '../../../common/errors/error-codes';
 import {
   VendorAlreadyExistsError,
+  VendorDocumentNotFoundError,
   VendorForbiddenError,
   VendorNotFoundError,
 } from '../domain/errors/vendor.errors';
@@ -25,6 +26,13 @@ export function mapVendorError(error: unknown): AppException {
     );
   }
   if (error instanceof VendorNotFoundError) {
+    return new AppException(
+      StandardErrorCode.NOT_FOUND,
+      error.message,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  if (error instanceof VendorDocumentNotFoundError) {
     return new AppException(
       StandardErrorCode.NOT_FOUND,
       error.message,

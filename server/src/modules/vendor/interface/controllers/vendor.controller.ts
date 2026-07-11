@@ -23,13 +23,21 @@ import { RegisterVendorUseCase } from '../../application/use-cases/register-vend
 import { GetMyVendorUseCase } from '../../application/use-cases/get-my-vendor.use-case';
 import { UpdateMyVendorUseCase } from '../../application/use-cases/update-my-vendor.use-case';
 import { VerifyVendorUseCase } from '../../application/use-cases/verify-vendor.use-case';
+import { CreateVendorDocumentUseCase } from '../../application/use-cases/create-vendor-document.use-case';
+import { GetMyVendorDocumentsUseCase } from '../../application/use-cases/get-my-vendor-documents.use-case';
+import { ApproveVendorDocumentUseCase } from '../../application/use-cases/approve-vendor-document.use-case';
 import type { VendorProps } from '../../domain/entities/vendor.entity';
+import type { VendorDocumentProps } from '../../domain/entities/vendor-document.entity';
 import {
   RegisterVendorDto,
   VendorResponseDto,
 } from '../dto/register-vendor.dto';
 import { UpdateVendorDto } from '../dto/update-vendor.dto';
 import { VerifyVendorDto } from '../dto/verify-vendor.dto';
+import {
+  CreateVendorDocumentDto,
+  VendorDocumentResponseDto,
+} from '../dto/vendor-document.dto';
 import { mapVendorError } from '../vendor-error.mapper';
 
 /**
@@ -51,6 +59,9 @@ export class VendorController {
     private readonly getMyVendor: GetMyVendorUseCase,
     private readonly updateMyVendor: UpdateMyVendorUseCase,
     private readonly verifyVendor: VerifyVendorUseCase,
+    private readonly createVendorDocument: CreateVendorDocumentUseCase,
+    private readonly getMyVendorDocuments: GetMyVendorDocumentsUseCase,
+    private readonly approveVendorDocument: ApproveVendorDocumentUseCase,
   ) {}
 
   @Post()
@@ -139,6 +150,88 @@ export class VendorController {
     } catch (error) {
       throw mapVendorError(error);
     }
+  }
+
+  @Post('me/documents')
+  @ApiOperation({
+    summary: 'Submit a vendor document (FR-VND-008, minimal slice)',
+    description:
+      'No multipart upload/S3 integration in this slice — fileUrl accepts a plain string URL.',
+  })
+  @ApiResponse({ status: 201, type: VendorDocumentResponseDto })
+  async createDocumentHandler(
+    @Body() dto: CreateVendorDocumentDto,
+    @CurrentUser() user: AccessTokenClaims,
+    @Ip() ip: string,
+  ): Promise<VendorDocumentResponseDto> {
+    try {
+      const result = await this.createVendorDocument.execute({
+        userId: user.sub,
+        type: dto.type,
+        fileUrl: dto.fileUrl,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        ipAddress: ip,
+      });
+      return this.toDocumentResponseDto(result);
+    } catch (error) {
+      throw mapVendorError(error);
+    }
+  }
+
+  @Get('me/documents')
+  @ApiOperation({ summary: "List the caller's vendor documents (FR-VND-008)" })
+  @ApiResponse({ status: 200, type: [VendorDocumentResponseDto] })
+  async listMyDocumentsHandler(
+    @CurrentUser() user: AccessTokenClaims,
+  ): Promise<VendorDocumentResponseDto[]> {
+    try {
+      const results = await this.getMyVendorDocuments.execute({
+        userId: user.sub,
+      });
+      return results.map((document) => this.toDocumentResponseDto(document));
+    } catch (error) {
+      throw mapVendorError(error);
+    }
+  }
+
+  @Post('documents/:documentId/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Admin approves a vendor document (FR-VND-008, admin only)',
+    description:
+      'Authorization (admin role) enforced in ApproveVendorDocumentUseCase via a DB role lookup, not a route guard — see UserRolesRepository doc comment.',
+  })
+  @ApiResponse({ status: 200, type: VendorDocumentResponseDto })
+  async approveDocumentHandler(
+    @Param('documentId') documentId: string,
+    @CurrentUser() user: AccessTokenClaims,
+    @Ip() ip: string,
+  ): Promise<VendorDocumentResponseDto> {
+    try {
+      const result = await this.approveVendorDocument.execute({
+        actorUserId: user.sub,
+        documentId,
+        ipAddress: ip,
+      });
+      return this.toDocumentResponseDto(result);
+    } catch (error) {
+      throw mapVendorError(error);
+    }
+  }
+
+  private toDocumentResponseDto(
+    document: VendorDocumentProps,
+  ): VendorDocumentResponseDto {
+    return {
+      id: document.id,
+      vendorId: document.vendorId,
+      type: document.type,
+      fileUrl: document.fileUrl,
+      reviewStatus: document.reviewStatus,
+      expiresAt: document.expiresAt ? document.expiresAt.toISOString() : null,
+      createdAt: document.createdAt.toISOString(),
+      updatedAt: document.updatedAt.toISOString(),
+    };
   }
 
   private toResponseDto(vendor: VendorProps): VendorResponseDto {

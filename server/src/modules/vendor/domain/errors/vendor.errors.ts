@@ -25,3 +25,12 @@ export class VendorForbiddenError extends Error {
     this.name = 'VendorForbiddenError';
   }
 }
+
+// FR-VND-008 (minimal vendor_documents slice)
+
+export class VendorDocumentNotFoundError extends Error {
+  constructor() {
+    super('Vendor document not found.');
+    this.name = 'VendorDocumentNotFoundError';
+  }
+}

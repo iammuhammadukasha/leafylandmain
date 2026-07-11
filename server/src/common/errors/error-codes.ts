@@ -24,16 +24,23 @@ export const IdentityErrorCode = {
   SESSION_REVOKED: 'SESSION_REVOKED',
 } as const;
 
-// Vendor module-specific codes (API Spec §4). Only the codes this slice's
-// endpoints actually raise — VENDOR_NOT_VERIFIED (FR-VND publish gating)
-// and VENDOR_REVOKED are listed in the API spec's module error table but
-// belong to endpoints (product publish, revoke) not built in this slice,
-// so they're intentionally omitted here until those endpoints exist.
+// Vendor module-specific codes (API Spec §4). VENDOR_NOT_VERIFIED is now
+// used by Product Marketplace's publish use case (FR-VND-005 gating,
+// reusing this existing code per the task's instruction) — VENDOR_REVOKED
+// remains omitted until the revoke endpoint exists.
 export const VendorErrorCode = {
   VENDOR_ALREADY_EXISTS: 'VENDOR_ALREADY_EXISTS',
+  VENDOR_NOT_VERIFIED: 'VENDOR_NOT_VERIFIED',
+} as const;
+
+// Product Marketplace module-specific codes (API Spec §5).
+export const ProductErrorCode = {
+  SKU_TAKEN: 'SKU_TAKEN',
+  ORGANIC_CLAIM_UNVERIFIED: 'ORGANIC_CLAIM_UNVERIFIED',
 } as const;
 
 export type ErrorCode =
   | (typeof StandardErrorCode)[keyof typeof StandardErrorCode]
   | (typeof IdentityErrorCode)[keyof typeof IdentityErrorCode]
-  | (typeof VendorErrorCode)[keyof typeof VendorErrorCode];
+  | (typeof VendorErrorCode)[keyof typeof VendorErrorCode]
+  | (typeof ProductErrorCode)[keyof typeof ProductErrorCode];
