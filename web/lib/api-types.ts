@@ -65,3 +65,33 @@ export interface ProfileResponse {
   phoneVerifiedAt: string | null;
   emailVerifiedAt: string | null;
 }
+
+// Vendor module (API Spec Volume 07 §4) — registration/store-profile slice.
+export interface RegisterVendorRequest {
+  businessName: string;
+  description?: string;
+}
+
+export type VendorStatus = 'pending' | 'verified' | 'rejected' | 'revoked';
+
+export interface VendorResponse {
+  id: string;
+  ownerUserId: string;
+  businessName: string;
+  description: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  status: VendorStatus;
+  commissionRateBps: number | null;
+  verifiedAt: string | null;
+  rejectedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateVendorRequest {
+  businessName?: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
+}

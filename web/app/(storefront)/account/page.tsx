@@ -16,12 +16,13 @@ import { useEffect } from 'react';
 export default function AccountPage() {
   const router = useRouter();
   const accessToken = useAuthStore((state) => state.accessToken);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
 
   useEffect(() => {
-    if (!accessToken) {
+    if (hasHydrated && !accessToken) {
       router.replace('/login');
     }
-  }, [accessToken, router]);
+  }, [hasHydrated, accessToken, router]);
 
   const profileQuery = useQuery({
     queryKey: ['profile', accessToken],
@@ -29,7 +30,7 @@ export default function AccountPage() {
     enabled: Boolean(accessToken),
   });
 
-  if (!accessToken) {
+  if (!hasHydrated || !accessToken) {
     return null;
   }
 

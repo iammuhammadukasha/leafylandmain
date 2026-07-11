@@ -7,6 +7,9 @@ import {
   type ProfileResponse,
   type RegisterRequest,
   type RegisterResponse,
+  type RegisterVendorRequest,
+  type UpdateVendorRequest,
+  type VendorResponse,
   type VerifyEmailRequest,
   type VerifyEmailResponse,
 } from './api-types';
@@ -65,5 +68,27 @@ export const userApi = {
     request<ProfileResponse>('/api/v1/users/me/profile', {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+};
+
+export const vendorApi = {
+  register: (accessToken: string, payload: RegisterVendorRequest) =>
+    request<VendorResponse>('/api/v1/vendors', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
+
+  getMyVendor: (accessToken: string) =>
+    request<VendorResponse>('/api/v1/vendors/me', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+
+  updateMyVendor: (accessToken: string, payload: UpdateVendorRequest) =>
+    request<VendorResponse>('/api/v1/vendors/me', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
     }),
 };

@@ -17,8 +17,19 @@ import { persist } from 'zustand/middleware';
 interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
+  /**
+   * False until zustand's persist middleware has finished reading
+   * localStorage. On a fresh page load (e.g. typing a URL directly, or any
+   * navigation that remounts the store) accessToken briefly starts as
+   * `null` before rehydration completes — pages must wait for
+   * hasHydrated before treating a null accessToken as "not logged in",
+   * or they redirect to /login even though a valid token exists in
+   * storage.
+   */
+  hasHydrated: boolean;
   setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   clear: () => void;
+  setHasHydrated: (value: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -26,10 +37,21 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       accessToken: null,
       refreshToken: null,
+      hasHydrated: false,
       setTokens: ({ accessToken, refreshToken }) =>
         set({ accessToken, refreshToken }),
       clear: () => set({ accessToken: null, refreshToken: null }),
+      setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
-    { name: 'leafyland-auth' },
+    {
+      name: 'leafyland-auth',
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
+      partialize: (state) => ({
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+      }),
+    },
   ),
 );

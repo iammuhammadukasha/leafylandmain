@@ -1,11 +1,16 @@
 // LeafyLand v2 — Prisma schema
-// Scope: Identity context (Volume 04 §2) + User context (Volume 04 §3),
-// foundation-phase vertical slice only (register -> verify -> login -> profile).
-// Vendor / Product / Orders contexts are NOT modeled here yet — those FKs
-// (vendors.id, products.id) are deliberately absent; user_roles.vendor_id
-// and wishlists.product_id will be added when the Vendor / Product
-// Marketplace modules are scaffolded, per Constitution §11.6 (no
-// speculative abstraction).
+// Scope: Identity context (Volume 04 §2) + User context (Volume 04 §3) +
+// Vendor context (Volume 04 §4, registration/verification/store-profile
+// vertical slice only). Product / Orders contexts are NOT modeled here yet
+// — those FKs (products.id) are deliberately absent; wishlists.product_id
+// will be added when Product Marketplace is scaffolded, per Constitution
+// §11.6 (no speculative abstraction).
+//
+// Vendor context slice covers FR-VND-001 (register), FR-VND-002 (admin
+// verify), FR-VND-003 (store profile update via PATCH /vendors/me), and
+// GET /vendors/me. vendor_documents, vendor_staff_invitations, and
+// vendor_wallet_ledger (Volume 04 §4) are deliberately NOT modeled — they
+// back FR-VND-004/006/008 which are out of scope for this slice.
 
 generator client {
   provider        = "prisma-client-js"
@@ -47,6 +52,13 @@ enum AddressType {
   shipping
 }
 
+enum VendorStatus {
+  pending
+  verified
+  rejected
+  revoked
+}
+
 // ---------------------------------------------------------------------------
 // Identity context (Volume 04 §2)
 // ---------------------------------------------------------------------------
@@ -75,6 +87,7 @@ model User {
   profile        UserProfile?
   addresses      Address[]
   auditLogs      AuditLog[]     @relation("AuditLogActor")
+  ownedVendors   Vendor[]
 
   @@map("users")
 }
@@ -110,9 +123,10 @@ model Role {
 }
 
 // no soft delete (Volume 04 §2)
-// vendorId is left nullable with no FK yet — Vendor context does not exist
-// in this slice. When Vendor module lands, add `vendor Vendor?
-// @relation(fields: [vendorId], references: [id])`.
+// vendorId now FKs to Vendor (added below) now that the Vendor context
+// exists — scopes vendor_owner/vendor_staff rows to one vendor, per
+// FR-ID-006. Global roles (shopper, admin, super_admin) leave vendorId
+// null.
 //
 // DEVIATION from Volume 04 §2: the doc specifies
 // `PRIMARY KEY(user_id, role_id, vendor_id)` with vendor_id nullable.
@@ -131,12 +145,14 @@ model UserRole {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  user User @relation(fields: [userId], references: [id])
-  role Role @relation(fields: [roleId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+  role   Role    @relation(fields: [roleId], references: [id])
+  vendor Vendor? @relation(fields: [vendorId], references: [id])
 
   @@unique([userId, roleId, vendorId])
   @@index([userId])
   @@index([roleId])
+  @@index([vendorId])
   @@map("user_roles")
 }
 
@@ -246,4 +262,44 @@ model Address {
 
   @@index([userId])
   @@map("addresses")
+}
+
+// ---------------------------------------------------------------------------
+// Vendor context (Volume 04 §4) — registration/verification/store-profile
+// vertical slice only (FR-VND-001/002/003, GET /vendors/me). Documents,
+// staff invitations, and wallet ledger tables are deliberately NOT modeled
+// — see file header note.
+// ---------------------------------------------------------------------------
+
+model Vendor {
+  id                String       @id @default(uuid()) @db.Uuid
+  ownerUserId       String       @map("owner_user_id") @db.Uuid
+  businessName      String       @map("business_name")
+  description       String?
+  logoUrl           String?      @map("logo_url")
+  bannerUrl         String?      @map("banner_url")
+  status            VendorStatus @default(pending)
+  // Basis points; nullable = "no vendor-specific override, use the
+  // category default" (Volume 02 §4 FR-VND-006 — category-based default
+  // with per-vendor override). Category defaults aren't modeled yet
+  // (Product Marketplace context, out of scope), so this column exists per
+  // the ERD but is left null by this slice's use cases; commission
+  // computation itself is FR-VND-006, explicitly deferred.
+  commissionRateBps Int?         @map("commission_rate_bps")
+  verifiedAt        DateTime?    @map("verified_at") @db.Timestamptz
+  rejectedReason    String?      @map("rejected_reason")
+
+  // Standard columns (Constitution §7)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  owner     User       @relation(fields: [ownerUserId], references: [id])
+  userRoles UserRole[]
+
+  @@index([ownerUserId])
+  @@map("vendors")
 }
