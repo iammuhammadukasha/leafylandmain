@@ -7,6 +7,8 @@ import {
   type ProfileResponse,
   type RegisterRequest,
   type RegisterResponse,
+  type VerifyEmailRequest,
+  type VerifyEmailResponse,
 } from './api-types';
 
 const API_BASE_URL =
@@ -47,6 +49,12 @@ export const authApi = {
 
   login: (payload: LoginRequest) =>
     request<LoginResponse>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  verifyEmail: (payload: VerifyEmailRequest) =>
+    request<VerifyEmailResponse>('/api/v1/auth/verify-email', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

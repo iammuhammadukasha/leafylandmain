@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
+import Link from 'next/link';
 import { authApi } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api-types';
@@ -72,6 +73,13 @@ export default function LoginPage() {
           </p>
         )}
       </form>
+
+      <p className="text-sm">
+        Don&apos;t have an account?{' '}
+        <Link href="/register" className="underline">
+          Create one
+        </Link>
+      </p>
     </main>
   );
 }
