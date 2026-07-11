@@ -6,6 +6,7 @@ import {
   VendorErrorCode,
 } from '../../../common/errors/error-codes';
 import {
+  AnswerForbiddenError,
   CategoryDepthExceededError,
   CategoryNotFoundError,
   CategorySlugTakenError,
@@ -13,6 +14,9 @@ import {
   ProductForbiddenError,
   ProductNotFoundError,
   ProductVariantNotFoundError,
+  QuestionNotFoundError,
+  ReviewAlreadyExistsError,
+  ReviewNotEligibleError,
   SkuTakenError,
   VendorNotVerifiedError,
 } from '../domain/errors/product.errors';
@@ -84,6 +88,34 @@ export function mapProductError(error: unknown): AppException {
       ProductErrorCode.SKU_TAKEN,
       error.message,
       HttpStatus.CONFLICT,
+    );
+  }
+  if (error instanceof ReviewNotEligibleError) {
+    return new AppException(
+      ProductErrorCode.REVIEW_NOT_ELIGIBLE,
+      error.message,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    );
+  }
+  if (error instanceof ReviewAlreadyExistsError) {
+    return new AppException(
+      StandardErrorCode.CONFLICT,
+      error.message,
+      HttpStatus.CONFLICT,
+    );
+  }
+  if (error instanceof QuestionNotFoundError) {
+    return new AppException(
+      StandardErrorCode.NOT_FOUND,
+      error.message,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  if (error instanceof AnswerForbiddenError) {
+    return new AppException(
+      StandardErrorCode.FORBIDDEN,
+      error.message,
+      HttpStatus.FORBIDDEN,
     );
   }
 

@@ -15,11 +15,12 @@
 // scope for this slice.
 //
 // Product Marketplace context slice covers FR-PRD-001 (categories only —
-// brands deferred), FR-PRD-002 (products + variants), and FR-VND-005
-// (vendor-side product management), including the BR-PRD-01/BR-VND-02
-// cross-context organic-claim rule. See final report for the full deferred
-// list (offers/coupons, reviews/questions, search, recommendations,
-// compare, brands CRUD).
+// brands deferred), FR-PRD-002 (products + variants), FR-VND-005
+// (vendor-side product management, including the BR-PRD-01/BR-VND-02
+// cross-context organic-claim rule), and FR-PRD-004 (reviews & Q&A — see
+// that section's header comment below for scope/deviations). See final
+// report for the full remaining deferred list (offers/coupons, search,
+// recommendations, compare, brands CRUD).
 
 generator client {
   provider        = "prisma-client-js"
@@ -455,6 +456,8 @@ model Product {
   category            Category         @relation(fields: [categoryId], references: [id])
   organicCertDocument VendorDocument?  @relation(fields: [organicCertDocumentId], references: [id])
   variants            ProductVariant[]
+  reviews             Review[]
+  questions           Question[]
 
   @@index([vendorId])
   @@index([categoryId])
@@ -483,6 +486,91 @@ model ProductVariant {
 
   @@index([productId])
   @@map("product_variants")
+}
+
+// FR-PRD-004 (Volume 04 §5 `reviews` table). `orderLineId` is unique — one
+// review per purchased order line (proves verified-buyer-only reviews, BRS
+// §7 rule 4). No FK constraint to `order_lines.id` at the Prisma level:
+// order_lines is an Orders-context table and Volume 04 §7 allows DB-level
+// FKs across context table groups for referential integrity, but Prisma
+// relations require both sides to be modeled in the same schema/client to
+// declare a `@relation` — since this is one physical Postgres schema, a raw
+// FK is fine at the SQL level, however keeping Review's read of order-line
+// facts behind a dedicated cross-context port (OrderLineLookupRepository,
+// Product's own domain layer, mirroring VendorLookupRepository) means the
+// *application* code never joins across the boundary even though the
+// physical FK constraint itself still exists for integrity — added via a
+// raw index+unique constraint below rather than a Prisma `@relation` field,
+// so Product's Prisma model surface doesn't declare a compile-time
+// dependency on the Order/OrderLine models the way a `@relation` would.
+model Review {
+  id          String @id @default(uuid()) @db.Uuid
+  productId   String @map("product_id") @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+  orderLineId String @unique @map("order_line_id") @db.Uuid
+  rating      Int
+  body        String
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([userId])
+  @@map("reviews")
+}
+
+// FR-PRD-004 Q&A. NOT specified in Volume 04 §5's ERD (only `reviews` is
+// detailed there) — this is a pragmatic, minimal design filled in for this
+// slice per the task brief: `Question` (product + asking user + body) and
+// `Answer` (question + answering vendor user + body), both with the
+// standard Constitution §7 columns. Any authenticated user may ask; only
+// the owning vendor's owner/staff may answer (enforced in the application
+// layer via the same UserRolesRepository-style DB-backed check Vendor/
+// Product already use elsewhere — see AnswerQuestionUseCase).
+model Question {
+  id        String @id @default(uuid()) @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  body      String
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  product Product  @relation(fields: [productId], references: [id])
+  answers Answer[]
+
+  @@index([productId])
+  @@index([userId])
+  @@map("questions")
+}
+
+model Answer {
+  id         String @id @default(uuid()) @db.Uuid
+  questionId String @map("question_id") @db.Uuid
+  answeredBy String @map("answered_by") @db.Uuid
+  body       String
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@index([questionId])
+  @@map("answers")
 }
 
 // ---------------------------------------------------------------------------

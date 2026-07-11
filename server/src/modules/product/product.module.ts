@@ -16,6 +16,11 @@ import { PublishProductUseCase } from './application/use-cases/publish-product.u
 import { DelistProductUseCase } from './application/use-cases/delist-product.use-case';
 import { CreateProductVariantUseCase } from './application/use-cases/create-product-variant.use-case';
 import { UpdateProductVariantUseCase } from './application/use-cases/update-product-variant.use-case';
+import { SubmitReviewUseCase } from './application/use-cases/submit-review.use-case';
+import { GetProductReviewsUseCase } from './application/use-cases/get-product-reviews.use-case';
+import { AskQuestionUseCase } from './application/use-cases/ask-question.use-case';
+import { GetProductQuestionsUseCase } from './application/use-cases/get-product-questions.use-case';
+import { AnswerQuestionUseCase } from './application/use-cases/answer-question.use-case';
 
 import { CATEGORY_REPOSITORY } from './domain/repositories/category.repository';
 import { PrismaCategoryRepository } from './infrastructure/persistence/prisma-category.repository';
@@ -27,6 +32,14 @@ import { VENDOR_LOOKUP_REPOSITORY } from './domain/repositories/vendor-lookup.re
 import { PrismaVendorLookupRepository } from './infrastructure/persistence/prisma-vendor-lookup.repository';
 import { VENDOR_DOCUMENT_LOOKUP_REPOSITORY } from './domain/repositories/vendor-document-lookup.repository';
 import { PrismaVendorDocumentLookupRepository } from './infrastructure/persistence/prisma-vendor-document-lookup.repository';
+import { ORDER_LINE_LOOKUP_REPOSITORY } from './domain/repositories/order-line-lookup.repository';
+import { PrismaOrderLineLookupRepository } from './infrastructure/persistence/prisma-order-line-lookup.repository';
+import { REVIEW_REPOSITORY } from './domain/repositories/review.repository';
+import { PrismaReviewRepository } from './infrastructure/persistence/prisma-review.repository';
+import { QUESTION_REPOSITORY } from './domain/repositories/question.repository';
+import { PrismaQuestionRepository } from './infrastructure/persistence/prisma-question.repository';
+import { ANSWER_REPOSITORY } from './domain/repositories/answer.repository';
+import { PrismaAnswerRepository } from './infrastructure/persistence/prisma-answer.repository';
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -44,6 +57,14 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
  * `vendor_documents` tables — Volume 04 §7's cross-context reference rule:
  * FKs are allowed at the DB level, but every read crosses through an
  * owning-module-shaped port, never an ad hoc join).
+ *
+ * FR-PRD-004 (reviews & Q&A) adds one more cross-context port in the same
+ * spirit: OrderLineLookupRepository, a Product-owned read-only port over
+ * Orders' `order_lines`/`orders` tables (the exact reverse direction of
+ * Orders' own ProductLookupRepository reading Product's tables). Also
+ * reuses VendorModule's exported USER_ROLES_REPOSITORY (already imported
+ * above for category admin-role checks) for the "answer a question" vendor-
+ * ownership check — no new cross-module import needed.
  */
 @Module({
   imports: [IdentityModule, VendorModule],
@@ -61,6 +82,11 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
     DelistProductUseCase,
     CreateProductVariantUseCase,
     UpdateProductVariantUseCase,
+    SubmitReviewUseCase,
+    GetProductReviewsUseCase,
+    AskQuestionUseCase,
+    GetProductQuestionsUseCase,
+    AnswerQuestionUseCase,
     JwtAuthGuard,
     { provide: CATEGORY_REPOSITORY, useClass: PrismaCategoryRepository },
     { provide: PRODUCT_REPOSITORY, useClass: PrismaProductRepository },
@@ -76,6 +102,13 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
       provide: VENDOR_DOCUMENT_LOOKUP_REPOSITORY,
       useClass: PrismaVendorDocumentLookupRepository,
     },
+    {
+      provide: ORDER_LINE_LOOKUP_REPOSITORY,
+      useClass: PrismaOrderLineLookupRepository,
+    },
+    { provide: REVIEW_REPOSITORY, useClass: PrismaReviewRepository },
+    { provide: QUESTION_REPOSITORY, useClass: PrismaQuestionRepository },
+    { provide: ANSWER_REPOSITORY, useClass: PrismaAnswerRepository },
   ],
 })
 export class ProductModule {}

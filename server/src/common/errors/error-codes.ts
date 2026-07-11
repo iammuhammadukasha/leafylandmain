@@ -37,6 +37,7 @@ export const VendorErrorCode = {
 export const ProductErrorCode = {
   SKU_TAKEN: 'SKU_TAKEN',
   ORGANIC_CLAIM_UNVERIFIED: 'ORGANIC_CLAIM_UNVERIFIED',
+  REVIEW_NOT_ELIGIBLE: 'REVIEW_NOT_ELIGIBLE',
 } as const;
 
 // Orders module-specific codes (API Spec §6).

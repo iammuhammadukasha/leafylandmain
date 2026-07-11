@@ -295,3 +295,57 @@ export interface OrderResponse {
   lines: OrderLineResponse[];
   createdAt: string;
 }
+
+// Reviews & Q&A (API Spec Volume 07 SS5.3, FR-PRD-004). Reviews require a
+// PAID order line for this product (documented deviation from the spec's
+// "fulfilled" wording — FR-ORD-006 shipping/delivery status doesn't exist
+// in this codebase yet; see server/src/modules/product's SubmitReviewUseCase
+// comment for the full rationale).
+export interface CreateReviewRequest {
+  orderLineId: string;
+  rating: number;
+  body: string;
+}
+
+export interface ReviewResponse {
+  id: string;
+  productId: string;
+  userId: string;
+  orderLineId: string;
+  rating: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewListMeta {
+  nextCursor: string | null;
+  count: number;
+}
+
+export interface CreateQuestionRequest {
+  body: string;
+}
+
+export interface CreateAnswerRequest {
+  body: string;
+}
+
+export interface AnswerResponse {
+  id: string;
+  questionId: string;
+  answeredBy: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestionResponse {
+  id: string;
+  productId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  answers: AnswerResponse[];
+}

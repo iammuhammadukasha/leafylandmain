@@ -7,6 +7,10 @@ import type {
   VendorDocumentSummary,
 } from '../../../domain/repositories/vendor-document-lookup.repository';
 import type {
+  OrderLineLookupRepository,
+  OrderLineSummary,
+} from '../../../domain/repositories/order-line-lookup.repository';
+import type {
   AuditEvent,
   AuditLogger,
 } from '../../../../identity/application/ports/audit-logger.port';
@@ -74,6 +78,21 @@ export class FakeUserRolesRepository implements UserRolesRepository {
         (row.vendorId === null || row.vendorId === vendorId),
     );
     return Promise.resolve(match);
+  }
+}
+
+/** In-memory stand-in for Product's cross-context
+ * OrderLineLookupRepository port. Seed with `.seed(summary)` in tests —
+ * mirrors FakeVendorLookupRepository's shape. */
+export class FakeOrderLineLookupRepository implements OrderLineLookupRepository {
+  private readonly lines: OrderLineSummary[] = [];
+
+  seed(line: OrderLineSummary): void {
+    this.lines.push(line);
+  }
+
+  findById(id: string): Promise<OrderLineSummary | null> {
+    return Promise.resolve(this.lines.find((l) => l.id === id) ?? null);
   }
 }
 

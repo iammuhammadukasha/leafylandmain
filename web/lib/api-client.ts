@@ -1,6 +1,7 @@
 import {
   ApiError,
   type AddCartLineRequest,
+  type AnswerResponse,
   type ApiErrorResponse,
   type ApiSuccessResponse,
   type CartResponse,
@@ -8,9 +9,12 @@ import {
   type CheckoutQuoteResponse,
   type CheckoutRequest,
   type CheckoutResponse,
+  type CreateAnswerRequest,
   type CreateCategoryRequest,
   type CreateProductRequest,
   type CreateProductVariantRequest,
+  type CreateQuestionRequest,
+  type CreateReviewRequest,
   type CreateVendorDocumentRequest,
   type LoginRequest,
   type LoginResponse,
@@ -19,9 +23,12 @@ import {
   type ProductResponse,
   type ProductVariantResponse,
   type ProfileResponse,
+  type QuestionResponse,
   type RegisterRequest,
   type RegisterResponse,
   type RegisterVendorRequest,
+  type ReviewListMeta,
+  type ReviewResponse,
   type UpdateCartLineRequest,
   type UpdateProductRequest,
   type UpdateVendorRequest,
@@ -189,6 +196,55 @@ export const catalogApi = {
       `/api/v1/catalog/products/${id}/variants`,
       { method: 'GET' },
     ),
+
+  // Reviews & Q&A (API Spec Volume 07 SS5.3, FR-PRD-004).
+  listReviews: (productId: string) =>
+    requestWithMeta<ReviewResponse[], ReviewListMeta>(
+      `/api/v1/catalog/products/${productId}/reviews`,
+      { method: 'GET' },
+    ),
+
+  submitReview: (
+    accessToken: string,
+    productId: string,
+    payload: CreateReviewRequest,
+  ) =>
+    request<ReviewResponse>(`/api/v1/catalog/products/${productId}/reviews`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
+
+  listQuestions: (productId: string) =>
+    requestWithMeta<QuestionResponse[], ReviewListMeta>(
+      `/api/v1/catalog/products/${productId}/questions`,
+      { method: 'GET' },
+    ),
+
+  askQuestion: (
+    accessToken: string,
+    productId: string,
+    payload: CreateQuestionRequest,
+  ) =>
+    request<QuestionResponse>(
+      `/api/v1/catalog/products/${productId}/questions`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  answerQuestion: (
+    accessToken: string,
+    questionId: string,
+    payload: CreateAnswerRequest,
+  ) =>
+    request<AnswerResponse>(`/api/v1/catalog/questions/${questionId}/answers`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
 };
 
 // Vendor-side product management (API Spec Volume 07 §5.4, FR-VND-005).
