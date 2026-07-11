@@ -9,6 +9,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { UserModule } from './modules/user/user.module';
 import { VendorModule } from './modules/vendor/vendor.module';
 import { ProductModule } from './modules/product/product.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ProductModule } from './modules/product/product.module';
     UserModule,
     VendorModule,
     ProductModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

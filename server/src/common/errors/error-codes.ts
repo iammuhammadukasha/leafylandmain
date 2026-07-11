@@ -39,8 +39,18 @@ export const ProductErrorCode = {
   ORGANIC_CLAIM_UNVERIFIED: 'ORGANIC_CLAIM_UNVERIFIED',
 } as const;
 
+// Orders module-specific codes (API Spec §6).
+export const OrderErrorCode = {
+  CART_EMPTY: 'CART_EMPTY',
+  PRICE_CHANGED: 'PRICE_CHANGED',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+  ORDER_ALREADY_PAID: 'ORDER_ALREADY_PAID',
+  INVALID_WEBHOOK_SIGNATURE: 'INVALID_WEBHOOK_SIGNATURE',
+} as const;
+
 export type ErrorCode =
   | (typeof StandardErrorCode)[keyof typeof StandardErrorCode]
   | (typeof IdentityErrorCode)[keyof typeof IdentityErrorCode]
   | (typeof VendorErrorCode)[keyof typeof VendorErrorCode]
-  | (typeof ProductErrorCode)[keyof typeof ProductErrorCode];
+  | (typeof ProductErrorCode)[keyof typeof ProductErrorCode]
+  | (typeof OrderErrorCode)[keyof typeof OrderErrorCode];

@@ -1,8 +1,10 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { catalogApi } from '@/lib/api-client';
+import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { catalogApi, ordersApi } from '@/lib/api-client';
+import { useAuthStore } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api-types';
 
 /**
@@ -11,10 +13,21 @@ import { ApiError } from '@/lib/api-types';
  * FR-PRD-002). Draft/delisted products 404 for a non-owner caller, which
  * this page surfaces as a plain "not found" message (no special-casing —
  * the backend already enforces the rule, per Volume 04 §5 note).
+ *
+ * "Add to cart" (Orders module, FR-ORD-001) is Auth-only for this slice —
+ * an unauthenticated visitor sees a "log in to add to cart" prompt instead
+ * of a disabled button, matching the "Auth-only cart, guest cart deferred"
+ * scope reduction documented in server/prisma/schema.prisma's Orders
+ * context header comment.
  */
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const productId = params.id;
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+  const [addedVariantId, setAddedVariantId] = useState<string | null>(null);
 
   const productQuery = useQuery({
     queryKey: ['catalog-product', productId],
@@ -27,6 +40,18 @@ export default function ProductDetailPage() {
     queryFn: () => catalogApi.getProductVariants(productId),
     enabled: productQuery.isSuccess,
     retry: false,
+  });
+
+  const addToCart = useMutation({
+    mutationFn: (variantId: string) =>
+      ordersApi.addCartLine(accessToken as string, {
+        productVariantId: variantId,
+        quantity: 1,
+      }),
+    onSuccess: (_cart, variantId) => {
+      setAddedVariantId(variantId);
+      void queryClient.invalidateQueries({ queryKey: ['cart'] });
+    },
   });
 
   return (
@@ -66,6 +91,7 @@ export default function ProductDetailPage() {
                   <th className="py-1">SKU</th>
                   <th className="py-1">Price</th>
                   <th className="py-1">Stock</th>
+                  <th className="py-1" />
                 </tr>
               </thead>
               <tbody>
@@ -76,10 +102,48 @@ export default function ProductDetailPage() {
                       &#8377;{(Number(variant.priceMinor) / 100).toFixed(2)}
                     </td>
                     <td className="py-1">{variant.stockQuantity}</td>
+                    <td className="py-1 text-right">
+                      {!hasHydrated ? null : accessToken ? (
+                        <button
+                          type="button"
+                          disabled={
+                            addToCart.isPending || variant.stockQuantity === 0
+                          }
+                          onClick={() => addToCart.mutate(variant.id)}
+                          className="rounded bg-green-700 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                        >
+                          {addedVariantId === variant.id
+                            ? 'Added'
+                            : 'Add to cart'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => router.push('/login')}
+                          className="text-xs underline"
+                        >
+                          Log in to add to cart
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+
+          {addToCart.isError && (
+            <p className="text-sm text-red-600" role="alert">
+              {addToCart.error instanceof ApiError
+                ? addToCart.error.message
+                : 'Failed to add to cart.'}
+            </p>
+          )}
+
+          {accessToken && (
+            <a href="/cart" className="mt-2 w-fit text-sm underline">
+              View cart
+            </a>
           )}
         </>
       )}

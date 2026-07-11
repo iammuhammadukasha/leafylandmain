@@ -2,9 +2,9 @@
 // Scope: Identity context (Volume 04 §2) + User context (Volume 04 §3) +
 // Vendor context (Volume 04 §4, registration/verification/store-profile +
 // minimal vendor_documents) + Product Marketplace context (Volume 04 §5,
-// categories/products/variants vertical slice). Orders context is NOT
-// modeled here yet — wishlists.product_id etc. will be added when Orders
-// is scaffolded, per Constitution §11.6 (no speculative abstraction).
+// categories/products/variants vertical slice) + Orders context (Volume 04
+// §6, cart/checkout/webhook-payment vertical slice — see that section's
+// header comment below for exact scope/deferrals).
 //
 // Vendor context slice covers FR-VND-001 (register), FR-VND-002 (admin
 // verify), FR-VND-003 (store profile update via PATCH /vendors/me),
@@ -86,6 +86,36 @@ enum ProductStatus {
   delisted
 }
 
+enum CartStatus {
+  active
+  converted
+  abandoned
+}
+
+// Volume 02 §6.2: pending_payment, paid, shipped, delivered, cancelled,
+// refunded. This slice only drives pending_payment -> paid (checkout +
+// webhook). shipped/delivered/cancelled/refunded exist as values so the
+// column never needs a migration to add them later, but no endpoint in
+// this slice transitions an order into them (FR-ORD-004/005/006 deferred).
+enum OrderStatus {
+  pending_payment
+  paid
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+// Volume 04 §6 order_lines.status. Only `pending` is set/read by this
+// slice; fulfilled/returned/refunded are deferred along with
+// shipments/returns tables (FR-ORD-005/006).
+enum OrderLineStatus {
+  pending
+  fulfilled
+  returned
+  refunded
+}
+
 // ---------------------------------------------------------------------------
 // Identity context (Volume 04 §2)
 // ---------------------------------------------------------------------------
@@ -115,6 +145,8 @@ model User {
   addresses      Address[]
   auditLogs      AuditLog[]     @relation("AuditLogActor")
   ownedVendors   Vendor[]
+  carts          Cart[]
+  orders         Order[]
 
   @@map("users")
 }
@@ -285,7 +317,9 @@ model Address {
   updatedBy String?   @map("updated_by") @db.Uuid
   version   Int       @default(1)
 
-  user User @relation(fields: [userId], references: [id])
+  user              User    @relation(fields: [userId], references: [id])
+  shippingForOrders Order[] @relation("OrderShippingAddress")
+  billingForOrders  Order[] @relation("OrderBillingAddress")
 
   @@index([userId])
   @@map("addresses")
@@ -449,4 +483,118 @@ model ProductVariant {
 
   @@index([productId])
   @@map("product_variants")
+}
+
+// ---------------------------------------------------------------------------
+// Orders context (Volume 04 §6) — cart + checkout + webhook-verified payment
+// vertical slice (FR-ORD-001/002/003, BR-ORD-01). Scope reductions vs the
+// full doc, all deliberate (task instruction, not doc omission):
+//
+//  - Guest cart (nullable carts.user_id, cart merge-on-login) is NOT
+//    modeled — `Cart.userId` is required (Auth-only cart per this slice).
+//  - `invoices`, `shipments`, `returns` tables are NOT modeled — defers
+//    FR-ORD-004 (invoices), FR-ORD-005 (returns/refunds), FR-ORD-006
+//    (shipping/tracking) and the whole "vendor order fulfillment" API
+//    (Volume 07 §6.3) in full, not just partially.
+//  - Coupons/offers do not exist yet (Product Marketplace slice didn't
+//    model them either), so `orders` has no couponCode/discount columns —
+//    not a doc omission, coupons simply aren't buildable yet.
+//  - Taxes: category `taxRateBps` flat GST-style calc only, no
+//    CGST/SGST/IGST state-based splitting (FR-ORD-007 scope-reduced).
+//
+// `cart_lines` is explicitly marked "no soft delete" in Volume 04 §6 —
+// followed literally below (no deletedAt/createdBy/updatedBy/version).
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id     String     @id @default(uuid()) @db.Uuid
+  userId String     @map("user_id") @db.Uuid
+  status CartStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  user  User       @relation(fields: [userId], references: [id])
+  lines CartLine[]
+
+  @@index([userId])
+  @@map("carts")
+}
+
+// no soft delete (Volume 04 §6 explicit note)
+model CartLine {
+  id               String @id @default(uuid()) @db.Uuid
+  cartId           String @map("cart_id") @db.Uuid
+  productVariantId String @map("product_variant_id") @db.Uuid
+  quantity         Int
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  cart Cart @relation(fields: [cartId], references: [id])
+
+  @@unique([cartId, productVariantId])
+  @@index([cartId])
+  @@map("cart_lines")
+}
+
+model Order {
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @map("user_id") @db.Uuid
+  shippingAddressId String      @map("shipping_address_id") @db.Uuid
+  billingAddressId  String      @map("billing_address_id") @db.Uuid
+  status            OrderStatus @default(pending_payment)
+  subtotalMinor     BigInt      @map("subtotal_minor")
+  taxMinor          BigInt      @map("tax_minor")
+  shippingMinor     BigInt      @map("shipping_minor")
+  totalMinor        BigInt      @map("total_minor")
+  razorpayOrderId   String?     @map("razorpay_order_id")
+  razorpayPaymentId String?     @map("razorpay_payment_id")
+  paidAt            DateTime?   @map("paid_at") @db.Timestamptz
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  user            User        @relation(fields: [userId], references: [id])
+  shippingAddress Address     @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
+  billingAddress  Address     @relation("OrderBillingAddress", fields: [billingAddressId], references: [id])
+  lines           OrderLine[]
+
+  @@index([userId])
+  @@index([razorpayOrderId])
+  @@map("orders")
+}
+
+model OrderLine {
+  id                    String          @id @default(uuid()) @db.Uuid
+  orderId               String          @map("order_id") @db.Uuid
+  productVariantId      String          @map("product_variant_id") @db.Uuid
+  vendorId              String          @map("vendor_id") @db.Uuid
+  quantity              Int
+  unitPriceMinor        BigInt          @map("unit_price_minor")
+  taxMinor              BigInt          @map("tax_minor")
+  commissionBpsSnapshot Int?            @map("commission_bps_snapshot")
+  status                OrderLineStatus @default(pending)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([productVariantId])
+  @@map("order_lines")
 }

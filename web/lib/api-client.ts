@@ -1,14 +1,20 @@
 import {
   ApiError,
+  type AddCartLineRequest,
   type ApiErrorResponse,
   type ApiSuccessResponse,
+  type CartResponse,
   type CategoryResponse,
+  type CheckoutQuoteResponse,
+  type CheckoutRequest,
+  type CheckoutResponse,
   type CreateCategoryRequest,
   type CreateProductRequest,
   type CreateProductVariantRequest,
   type CreateVendorDocumentRequest,
   type LoginRequest,
   type LoginResponse,
+  type OrderResponse,
   type ProductListMeta,
   type ProductResponse,
   type ProductVariantResponse,
@@ -16,6 +22,7 @@ import {
   type RegisterRequest,
   type RegisterResponse,
   type RegisterVendorRequest,
+  type UpdateCartLineRequest,
   type UpdateProductRequest,
   type UpdateVendorRequest,
   type VendorDocumentResponse,
@@ -235,4 +242,56 @@ export const vendorProductApi = {
         body: JSON.stringify(payload),
       },
     ),
+};
+
+// Orders module (API Spec Volume 07 §6) — cart/checkout Auth-only slice.
+export const ordersApi = {
+  getCart: (accessToken: string) =>
+    request<CartResponse>('/api/v1/orders/cart', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+
+  addCartLine: (accessToken: string, payload: AddCartLineRequest) =>
+    request<CartResponse>('/api/v1/orders/cart/lines', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
+
+  updateCartLine: (
+    accessToken: string,
+    variantId: string,
+    payload: UpdateCartLineRequest,
+  ) =>
+    request<CartResponse>(`/api/v1/orders/cart/lines/${variantId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
+
+  removeCartLine: (accessToken: string, variantId: string) =>
+    request<CartResponse>(`/api/v1/orders/cart/lines/${variantId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+
+  quoteCheckout: (accessToken: string) =>
+    request<CheckoutQuoteResponse>('/api/v1/orders/checkout/quote', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+
+  checkout: (accessToken: string, payload: CheckoutRequest) =>
+    request<CheckoutResponse>('/api/v1/orders/checkout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
+
+  getOrder: (accessToken: string, orderId: string) =>
+    request<OrderResponse>(`/api/v1/orders/${orderId}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
 };

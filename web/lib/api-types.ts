@@ -201,3 +201,97 @@ export interface ProductListResponse {
   items: ProductResponse[];
   meta: ProductListMeta;
 }
+
+// Orders module (API Spec Volume 07 §6) — cart/checkout/webhook-payment
+// vertical slice (FR-ORD-001/002/003, BR-ORD-01). Deferred vs the full
+// spec: guest cart, invoices, shipments/returns, coupons, full GST — see
+// server/prisma/schema.prisma's Orders context header comment for the
+// complete deferred list.
+export type CartStatus = 'active' | 'converted' | 'abandoned';
+
+export interface CartLineResponse {
+  productVariantId: string;
+  quantity: number;
+}
+
+export interface CartResponse {
+  id: string;
+  userId: string;
+  status: CartStatus;
+  lines: CartLineResponse[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddCartLineRequest {
+  productVariantId: string;
+  quantity: number;
+}
+
+export interface UpdateCartLineRequest {
+  quantity: number;
+}
+
+export interface QuotedLineResponse {
+  productVariantId: string;
+  sku: string;
+  quantity: number;
+  unitPriceMinor: string;
+  lineSubtotalMinor: string;
+  lineTaxMinor: string;
+  categoryTaxRateBps: number;
+}
+
+export interface CheckoutQuoteResponse {
+  lines: QuotedLineResponse[];
+  subtotalMinor: string;
+  taxMinor: string;
+  shippingMinor: string;
+  totalMinor: string;
+}
+
+export interface CheckoutRequest {
+  shippingAddressId: string;
+  billingAddressId: string;
+}
+
+export interface CheckoutResponse {
+  orderId: string;
+  gatewayOrderId: string;
+  amountMinor: string;
+}
+
+export type OrderStatus =
+  | 'pending_payment'
+  | 'paid'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'refunded';
+
+export interface OrderLineResponse {
+  id: string;
+  productVariantId: string;
+  vendorId: string;
+  quantity: number;
+  unitPriceMinor: string;
+  taxMinor: string;
+  status: 'pending' | 'fulfilled' | 'returned' | 'refunded';
+}
+
+export interface OrderResponse {
+  id: string;
+  userId: string;
+  shippingAddressId: string;
+  billingAddressId: string;
+  status: OrderStatus;
+  subtotalMinor: string;
+  taxMinor: string;
+  shippingMinor: string;
+  totalMinor: string;
+  razorpayOrderId: string | null;
+  razorpayPaymentId: string | null;
+  paidAt: string | null;
+  lines: OrderLineResponse[];
+  createdAt: string;
+}
