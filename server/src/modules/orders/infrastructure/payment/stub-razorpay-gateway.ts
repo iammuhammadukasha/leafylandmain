@@ -4,6 +4,8 @@ import type {
   CreateGatewayOrderInput,
   CreateGatewayOrderResult,
   PaymentGatewayPort,
+  RefundInput,
+  RefundResult,
 } from '../../application/ports/payment-gateway.port';
 
 /**
@@ -38,5 +40,26 @@ export class StubRazorpayGateway implements PaymentGatewayPort {
       `[stub gateway] Created fake Razorpay order ${gatewayOrderId} for receipt=${input.receiptId} amount=${input.amountMinor}${input.currency}`,
     );
     return Promise.resolve({ gatewayOrderId });
+  }
+
+  /**
+   * STUB refund (FR-ORD-005). Same "generate a fake id locally, no real API
+   * call" pattern as `createOrder` above — a real adapter would call
+   * Razorpay's `payments.refund` REST API (POST
+   * https://api.razorpay.com/v1/payments/:id/refund) with the real
+   * key_id/key_secret, and would swap in via the same PAYMENT_GATEWAY
+   * provider binding without ApproveReturnUseCase (the only caller) ever
+   * knowing the difference — it depends only on PaymentGatewayPort.
+   *
+   * The fake id is prefixed `rfnd_stub_`, mirroring Razorpay's own real
+   * refund id format of `rfnd_<random>` closely enough to look realistic in
+   * logs/DB, same visual-marker intent as `order_stub_` above.
+   */
+  refund(input: RefundInput): Promise<RefundResult> {
+    const refundId = `rfnd_stub_${randomUUID().replace(/-/g, '')}`;
+    this.logger.log(
+      `[stub gateway] Issued fake Razorpay refund ${refundId} for paymentId=${input.paymentId} amount=${input.amountMinor}`,
+    );
+    return Promise.resolve({ refundId });
   }
 }

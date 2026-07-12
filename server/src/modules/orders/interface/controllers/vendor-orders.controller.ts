@@ -157,6 +157,8 @@ export class VendorOrdersController {
       lineStatus: line.lineStatus,
       shipmentStatus: line.shipmentStatus,
       createdAt: line.createdAt.toISOString(),
+      returnId: line.returnId,
+      returnStatus: line.returnStatus,
     };
   }
 

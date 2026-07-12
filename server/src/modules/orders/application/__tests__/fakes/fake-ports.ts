@@ -10,10 +10,13 @@ import type {
   OrdersVendorSummary,
   VendorLookupRepository,
 } from '../../../domain/repositories/vendor-lookup.repository';
+import type { OrdersUserRolesRepository } from '../../../domain/repositories/user-roles.repository';
 import type {
   CreateGatewayOrderInput,
   CreateGatewayOrderResult,
   PaymentGatewayPort,
+  RefundInput,
+  RefundResult,
   WebhookSignatureVerifierPort,
 } from '../../ports/payment-gateway.port';
 import type {
@@ -63,12 +66,19 @@ export class FakeAddressLookupRepository implements AddressLookupRepository {
 export class FakePaymentGateway implements PaymentGatewayPort {
   public calls: CreateGatewayOrderInput[] = [];
   public nextGatewayOrderId = 'order_stub_fake123';
+  public refundCalls: RefundInput[] = [];
+  public nextRefundId = 'rfnd_stub_fake123';
 
   createOrder(
     input: CreateGatewayOrderInput,
   ): Promise<CreateGatewayOrderResult> {
     this.calls.push(input);
     return Promise.resolve({ gatewayOrderId: this.nextGatewayOrderId });
+  }
+
+  refund(input: RefundInput): Promise<RefundResult> {
+    this.refundCalls.push(input);
+    return Promise.resolve({ refundId: this.nextRefundId });
   }
 }
 
@@ -106,5 +116,19 @@ export class FakeOrdersVendorLookupRepository implements VendorLookupRepository 
     return Promise.resolve(
       this.vendors.find((v) => v.ownerUserId === ownerUserId) ?? null,
     );
+  }
+}
+
+/** In-memory stand-in for Orders' own cross-context OrdersUserRolesRepository
+ * port (FR-ORD-005 admin check). Seed admin user ids with `.grantAdmin(id)`. */
+export class FakeOrdersUserRolesRepository implements OrdersUserRolesRepository {
+  private readonly admins = new Set<string>();
+
+  grantAdmin(userId: string): void {
+    this.admins.add(userId);
+  }
+
+  hasAdminRole(userId: string): Promise<boolean> {
+    return Promise.resolve(this.admins.has(userId));
   }
 }

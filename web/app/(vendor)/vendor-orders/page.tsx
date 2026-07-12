@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { vendorOrdersApi } from '@/lib/api-client';
+import { returnsApi, vendorOrdersApi } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api-types';
 import type { VendorOrderLineResponse } from '@/lib/api-types';
@@ -32,6 +32,8 @@ export default function VendorOrdersPage() {
   const [shipFormFor, setShipFormFor] = useState<string | null>(null);
   const [carrier, setCarrier] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
+  const [rejectFormFor, setRejectFormFor] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     if (hasHydrated && !accessToken) {
@@ -69,6 +71,34 @@ export default function VendorOrdersPage() {
       return vendorOrdersApi.deliverOrderLine(accessToken, orderLineId);
     },
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['vendor-order-lines'] });
+    },
+  });
+
+  // FR-ORD-005 — approve/reject actions for a line's pending return
+  // request. Reuses the returnId already joined onto each list row (see
+  // VendorOrderLineView's returnId/returnStatus fields) so no extra
+  // round-trip is needed to resolve orderLineId -> returnId.
+  const approveReturnMutation = useMutation({
+    mutationFn: (returnId: string) => {
+      if (!accessToken) throw new Error('Not authenticated.');
+      return returnsApi.approveReturn(accessToken, returnId);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['vendor-order-lines'] });
+    },
+  });
+
+  const rejectReturnMutation = useMutation({
+    mutationFn: (returnId: string) => {
+      if (!accessToken) throw new Error('Not authenticated.');
+      return returnsApi.rejectReturn(accessToken, returnId, {
+        reason: rejectReason,
+      });
+    },
+    onSuccess: () => {
+      setRejectFormFor(null);
+      setRejectReason('');
       void queryClient.invalidateQueries({ queryKey: ['vendor-order-lines'] });
     },
   });
@@ -134,7 +164,67 @@ export default function VendorOrdersPage() {
                 >
                   Mark delivered
                 </Button>
+
+                {line.returnStatus === 'requested' && line.returnId && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={approveReturnMutation.isPending}
+                      onClick={() =>
+                        approveReturnMutation.mutate(line.returnId as string)
+                      }
+                    >
+                      Approve return
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={rejectReturnMutation.isPending}
+                      onClick={() =>
+                        setRejectFormFor(
+                          rejectFormFor === line.returnId ? null : line.returnId,
+                        )
+                      }
+                    >
+                      Reject return
+                    </Button>
+                  </>
+                )}
               </div>
+
+              {line.returnStatus && (
+                <p className="text-xs text-gray-600">
+                  Return status: <span className="capitalize">{line.returnStatus}</span>
+                </p>
+              )}
+
+              {rejectFormFor === line.returnId && line.returnId && (
+                <form
+                  className="flex flex-col gap-2 rounded bg-gray-50 p-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    rejectReturnMutation.mutate(line.returnId as string);
+                  }}
+                >
+                  <label className="flex flex-col gap-1 text-sm">
+                    Rejection reason
+                    <Input
+                      type="text"
+                      required
+                      maxLength={1000}
+                      value={rejectReason}
+                      onChange={(event) => setRejectReason(event.target.value)}
+                      placeholder="e.g. Item shows normal wear, not eligible"
+                    />
+                  </label>
+                  <Button type="submit" disabled={rejectReturnMutation.isPending}>
+                    {rejectReturnMutation.isPending
+                      ? 'Rejecting…'
+                      : 'Confirm reject'}
+                  </Button>
+                </form>
+              )}
 
               {shipFormFor === line.orderLineId && (
                 <form
@@ -177,11 +267,21 @@ export default function VendorOrdersPage() {
         </ul>
       )}
 
-      {(shipMutation.isError || deliverMutation.isError) && (
+      {(shipMutation.isError ||
+        deliverMutation.isError ||
+        approveReturnMutation.isError ||
+        rejectReturnMutation.isError) && (
         <p className="text-sm text-red-600" role="alert">
-          {(shipMutation.error ?? deliverMutation.error) instanceof ApiError
-            ? ((shipMutation.error ?? deliverMutation.error) as ApiError)
-                .message
+          {(shipMutation.error ??
+            deliverMutation.error ??
+            approveReturnMutation.error ??
+            rejectReturnMutation.error) instanceof ApiError
+            ? (
+                (shipMutation.error ??
+                  deliverMutation.error ??
+                  approveReturnMutation.error ??
+                  rejectReturnMutation.error) as ApiError
+              ).message
             : 'Action failed.'}
         </p>
       )}

@@ -107,10 +107,13 @@ enum OrderStatus {
   refunded
 }
 
-// Volume 04 §6 order_lines.status. `fulfilled` is now reachable via
-// FR-ORD-006 (DeliverShipmentUseCase transitions a vendor's order lines to
-// fulfilled when their shipment reaches `delivered`). `returned`/`refunded`
-// remain deferred along with the `returns` table (FR-ORD-005).
+// Volume 04 §6 order_lines.status. `fulfilled` is reachable via FR-ORD-006
+// (DeliverShipmentUseCase transitions a vendor's order lines to fulfilled
+// when their shipment reaches `delivered`). `refunded` is now reachable via
+// FR-ORD-005 (ApproveReturnUseCase transitions a line straight from
+// `fulfilled` to `refunded` once the stub refund succeeds — see that use
+// case's doc comment for why this slice never surfaces the intermediate
+// `returned` value on order_lines itself, only on Return.status).
 enum OrderLineStatus {
   pending
   fulfilled
@@ -123,6 +126,14 @@ enum ShipmentStatus {
   pending
   shipped
   delivered
+}
+
+// Volume 04 §6 returns.status (FR-ORD-005).
+enum ReturnStatus {
+  requested
+  approved
+  rejected
+  refunded
 }
 
 // ---------------------------------------------------------------------------
@@ -589,9 +600,9 @@ model Answer {
 //
 //  - Guest cart (nullable carts.user_id, cart merge-on-login) is NOT
 //    modeled — `Cart.userId` is required (Auth-only cart per this slice).
-//  - `invoices`, `returns` tables are NOT modeled — defers FR-ORD-004
-//    (invoices) and FR-ORD-005 (returns/refunds). `shipments` IS now
-//    modeled (FR-ORD-006 — see the Shipment model below).
+//  - `invoices` table is NOT modeled — defers FR-ORD-004 (invoices).
+//    `shipments` and `returns` ARE now modeled (FR-ORD-006/FR-ORD-005 — see
+//    the Shipment/Return models below).
 //  - Coupons/offers do not exist yet (Product Marketplace slice didn't
 //    model them either), so `orders` has no couponCode/discount columns —
 //    not a doc omission, coupons simply aren't buildable yet.
@@ -724,4 +735,66 @@ model Shipment {
   @@index([orderId])
   @@index([vendorId])
   @@map("shipments")
+}
+
+// FR-ORD-005 (Volume 04 §6 `returns` table) — returns, refunds, exchanges
+// vertical slice. Exchanges are NOT modeled (task scoping decision: the SRS
+// title mentions exchanges but neither §6.2's flow description nor the ERD's
+// `returns` table has any exchange-specific field — only a status enum of
+// requested/approved/rejected/refunded, which is a pure return/refund state
+// machine. Building an exchange flow would mean inventing fields nowhere in
+// Volume 04, so it's left out of this slice same as the task brief's
+// per-category-window scoping decision below).
+//
+// SCOPING DECISION (documented per task instruction): the SRS says returns
+// are allowed "within policy window (per category)" but no per-category
+// return-window field exists anywhere in the schema (Category has no such
+// column, and the task brief explicitly says not to add one for this
+// slice). This slice uses a single fixed platform-wide window — 7 days from
+// the order line's fulfillment (the shipment reaching `delivered`, i.e.
+// Order.fulfillLinesForVendor's `now` — order_lines has no separate
+// "delivered_at" column of its own, so RequestReturnUseCase reads the
+// covering Shipment's `updatedAt` at the time it is `delivered` as the
+// delivery timestamp; see that use case's doc comment) — same pattern as
+// the flat shipping-rate simplification already documented in
+// CartPricingService.
+//
+// `orderLineId` is UNIQUE — one return per order line (same "prove
+// verified eligibility once" precedent as Review.orderLineId, Volume 04 §5
+// — a line that already has a `requested`/`approved`/`refunded` return
+// cannot have a second one requested; a `rejected` return also permanently
+// blocks a second attempt in this slice, since there is no "return attempt
+// N" concept in the ERD, only one `returns` row per line). No FK to
+// OrderLine at the Prisma level for the same cross-context reasoning as
+// Review.orderLineId above (Orders context owns order_lines; Orders' own
+// Return model lives in the SAME schema file as OrderLine though, so unlike
+// Review this COULD declare a `@relation` — it deliberately does not, to
+// keep RequestReturnUseCase's read of order-line eligibility behind the
+// same OrderRepository.findByOrderLineId port pattern already used by
+// Ship/DeliverShipmentUseCase, rather than a direct Prisma join, preserving
+// the "no business logic via ad hoc joins across an aggregate boundary"
+// discipline even within one context).
+model Return {
+  id          String       @id @default(uuid()) @db.Uuid
+  orderLineId String       @unique @map("order_line_id") @db.Uuid
+  reason      String
+  status      ReturnStatus @default(requested)
+  resolvedBy  String?      @map("resolved_by") @db.Uuid
+  // Not in the Volume 04 §6 ERD's literal `returns` column list, but
+  // required to satisfy the task brief's explicit AC ("records the refund
+  // id") — without persisting it there would be no queryable evidence the
+  // stub gateway's refund() call ever ran. Same class of pragmatic,
+  // documented addition as Question/Answer's ad hoc modeling.
+  refundId String? @map("refund_id")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  @@index([orderLineId])
+  @@index([status])
+  @@map("returns")
 }

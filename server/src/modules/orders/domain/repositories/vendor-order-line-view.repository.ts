@@ -20,6 +20,14 @@ export interface VendorOrderLineView {
   lineStatus: 'pending' | 'fulfilled' | 'returned' | 'refunded';
   shipmentStatus: 'pending' | 'shipped' | 'delivered' | null;
   createdAt: Date;
+  /** FR-ORD-005 addition — the return row against this line, if any (a
+   * line has at most one, Return.orderLineId is DB-unique). Lets the
+   * vendor-orders UI surface an approve/reject action without a separate
+   * round trip or a new endpoint (no GET /returns list exists in the API
+   * spec, §6.4 only defines the three action endpoints). Null when no
+   * return has ever been requested against this line. */
+  returnId: string | null;
+  returnStatus: 'requested' | 'approved' | 'rejected' | 'refunded' | null;
 }
 
 export interface VendorOrderLinePage {

@@ -14,10 +14,16 @@ import {
   OrderForbiddenError,
   OrderLineForbiddenError,
   OrderLineNotFoundError,
+  OrderLineNotOwnedError,
   OrderNotFoundError,
   OrderNotPaidError,
   OutOfStockError,
   ProductVariantNotAvailableError,
+  ReturnAlreadyExistsError,
+  ReturnForbiddenError,
+  ReturnNotFoundError,
+  ReturnNotRequestedError,
+  ReturnWindowExpiredError,
   ShipmentNotShippedError,
 } from '../domain/errors/order.errors';
 
@@ -132,6 +138,50 @@ export function mapOrderError(error: unknown): AppException {
   if (error instanceof ShipmentNotShippedError) {
     return new AppException(
       OrderErrorCode.SHIPMENT_NOT_SHIPPED,
+      error.message,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    );
+  }
+  if (error instanceof OrderLineNotOwnedError) {
+    // No-leak 404 — see the error class's doc comment (AddressForbiddenError
+    // precedent, not the vendor-fulfillment 403-split pattern).
+    return new AppException(
+      StandardErrorCode.NOT_FOUND,
+      error.message,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  if (error instanceof ReturnWindowExpiredError) {
+    return new AppException(
+      OrderErrorCode.RETURN_WINDOW_EXPIRED,
+      error.message,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    );
+  }
+  if (error instanceof ReturnAlreadyExistsError) {
+    return new AppException(
+      OrderErrorCode.RETURN_ALREADY_EXISTS,
+      error.message,
+      HttpStatus.CONFLICT,
+    );
+  }
+  if (error instanceof ReturnNotFoundError) {
+    return new AppException(
+      StandardErrorCode.NOT_FOUND,
+      error.message,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  if (error instanceof ReturnForbiddenError) {
+    return new AppException(
+      StandardErrorCode.FORBIDDEN,
+      error.message,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+  if (error instanceof ReturnNotRequestedError) {
+    return new AppException(
+      OrderErrorCode.RETURN_NOT_REQUESTED,
       error.message,
       HttpStatus.UNPROCESSABLE_ENTITY,
     );

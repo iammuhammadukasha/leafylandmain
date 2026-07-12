@@ -44,6 +44,21 @@ export class VendorOrderLineResponseDto {
 
   @ApiProperty()
   createdAt!: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'FR-ORD-005 — id of the Return row against this line, if any; null when no return has been requested.',
+  })
+  returnId!: string | null;
+
+  @ApiProperty({
+    enum: ['requested', 'approved', 'rejected', 'refunded'],
+    nullable: true,
+    type: String,
+  })
+  returnStatus!: 'requested' | 'approved' | 'rejected' | 'refunded' | null;
 }
 
 export class VendorOrderLineListMetaDto {

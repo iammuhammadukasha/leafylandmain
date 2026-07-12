@@ -27,6 +27,9 @@ import {
   type RegisterRequest,
   type RegisterResponse,
   type RegisterVendorRequest,
+  type RejectReturnRequest,
+  type RequestReturnRequest,
+  type ReturnResponse,
   type ReviewListMeta,
   type ReviewResponse,
   type ShipmentResponse,
@@ -353,6 +356,37 @@ export const ordersApi = {
     request<OrderResponse>(`/api/v1/orders/${orderId}`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+};
+
+// Returns & refunds (API Spec Volume 07 §6.4, FR-ORD-005).
+export const returnsApi = {
+  requestReturn: (
+    accessToken: string,
+    orderLineId: string,
+    payload: RequestReturnRequest,
+  ) =>
+    request<ReturnResponse>(`/api/v1/orders/lines/${orderLineId}/return`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }),
+
+  approveReturn: (accessToken: string, returnId: string) =>
+    request<ReturnResponse>(`/api/v1/orders/returns/${returnId}/approve`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+
+  rejectReturn: (
+    accessToken: string,
+    returnId: string,
+    payload: RejectReturnRequest,
+  ) =>
+    request<ReturnResponse>(`/api/v1/orders/returns/${returnId}/reject`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
     }),
 };
 

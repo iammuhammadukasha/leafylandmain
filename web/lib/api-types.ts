@@ -360,6 +360,9 @@ export interface VendorOrderLineResponse {
   lineStatus: 'pending' | 'fulfilled' | 'returned' | 'refunded';
   shipmentStatus: 'pending' | 'shipped' | 'delivered' | null;
   createdAt: string;
+  // FR-ORD-005 addition — the return against this line, if any.
+  returnId: string | null;
+  returnStatus: 'requested' | 'approved' | 'rejected' | 'refunded' | null;
 }
 
 export interface VendorOrderLineListMeta {
@@ -380,4 +383,23 @@ export interface ShipmentResponse {
   carrier: string | null;
   trackingNumber: string | null;
   status: 'pending' | 'shipped' | 'delivered';
+}
+
+// Returns & refunds (API Spec Volume 07 §6.4, FR-ORD-005).
+export interface RequestReturnRequest {
+  reason: string;
+}
+
+export interface RejectReturnRequest {
+  reason: string;
+}
+
+export interface ReturnResponse {
+  id: string;
+  orderLineId: string;
+  reason: string;
+  status: 'requested' | 'approved' | 'rejected' | 'refunded';
+  resolvedBy: string | null;
+  refundId: string | null;
+  createdAt: string;
 }

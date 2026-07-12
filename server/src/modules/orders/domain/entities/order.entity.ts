@@ -161,4 +161,25 @@ export class Order {
     }
     this.props.updatedAt = now;
   }
+
+  /** FR-ORD-005 — ApproveReturnUseCase calls this once the stub gateway's
+   * refund() call has succeeded, transitioning ONE specific order line
+   * (identified by id, not vendorId — unlike fulfillLinesForVendor, a
+   * return/refund is scoped to exactly the one line the buyer requested a
+   * return on, never "all of this vendor's lines on this order") from
+   * `fulfilled` to `refunded`. Only transitions a line currently
+   * `fulfilled`; a no-op (returns false) if the line is any other status —
+   * defensive, since RequestReturnUseCase already only allows creating a
+   * Return against a `fulfilled` line, so this should always find the line
+   * `fulfilled` in practice, mirroring fulfillLinesForVendor's own
+   * defensive-not-reachable guard style. */
+  refundLine(orderLineId: string, now: Date): boolean {
+    const line = this.props.lines.find((l) => l.id === orderLineId);
+    if (!line || line.status !== 'fulfilled') {
+      return false;
+    }
+    line.status = 'refunded';
+    this.props.updatedAt = now;
+    return true;
+  }
 }

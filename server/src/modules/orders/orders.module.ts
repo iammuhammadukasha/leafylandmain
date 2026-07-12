@@ -5,6 +5,7 @@ import { CheckoutController } from './interface/controllers/checkout.controller'
 import { OrdersController } from './interface/controllers/orders.controller';
 import { RazorpayWebhookController } from './interface/controllers/razorpay-webhook.controller';
 import { VendorOrdersController } from './interface/controllers/vendor-orders.controller';
+import { ReturnsController } from './interface/controllers/returns.controller';
 
 import { GetCartUseCase } from './application/use-cases/get-cart.use-case';
 import { AddCartLineUseCase } from './application/use-cases/add-cart-line.use-case';
@@ -17,6 +18,9 @@ import { GetOrderUseCase } from './application/use-cases/get-order.use-case';
 import { ListVendorOrderLinesUseCase } from './application/use-cases/list-vendor-order-lines.use-case';
 import { ShipOrderLineUseCase } from './application/use-cases/ship-order-line.use-case';
 import { DeliverShipmentUseCase } from './application/use-cases/deliver-shipment.use-case';
+import { RequestReturnUseCase } from './application/use-cases/request-return.use-case';
+import { ApproveReturnUseCase } from './application/use-cases/approve-return.use-case';
+import { RejectReturnUseCase } from './application/use-cases/reject-return.use-case';
 import { CartPricingService } from './application/services/cart-pricing.service';
 
 import { CART_REPOSITORY } from './domain/repositories/cart.repository';
@@ -33,6 +37,10 @@ import { VENDOR_LOOKUP_REPOSITORY } from './domain/repositories/vendor-lookup.re
 import { PrismaOrdersVendorLookupRepository } from './infrastructure/persistence/prisma-vendor-lookup.repository';
 import { VENDOR_ORDER_LINE_VIEW_REPOSITORY } from './domain/repositories/vendor-order-line-view.repository';
 import { PrismaVendorOrderLineViewRepository } from './infrastructure/persistence/prisma-vendor-order-line-view.repository';
+import { RETURN_REPOSITORY } from './domain/repositories/return.repository';
+import { PrismaReturnRepository } from './infrastructure/persistence/prisma-return.repository';
+import { ORDERS_USER_ROLES_REPOSITORY } from './domain/repositories/user-roles.repository';
+import { PrismaOrdersUserRolesRepository } from './infrastructure/persistence/prisma-user-roles.repository';
 
 import {
   PAYMENT_GATEWAY,
@@ -66,6 +74,15 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
  * read port), and VENDOR_ORDER_LINE_VIEW_REPOSITORY (the flat paginated
  * read model backing GET /vendors/me/orders — see that port's doc comment
  * for why it's separate from ORDER_REPOSITORY).
+ *
+ * FR-ORD-005 (returns & refunds) adds: RETURN_REPOSITORY (owns `returns`),
+ * ORDERS_USER_ROLES_REPOSITORY (Orders' own admin-role read port — same
+ * "each module gets its own thin port over `user_roles`" pattern as
+ * Vendor's UserRolesRepository, scoped down to just the admin check
+ * ApproveReturnUseCase/RejectReturnUseCase need), and a `refund()` method
+ * added to the existing PAYMENT_GATEWAY port/stub (no new provider
+ * binding — same StubRazorpayGateway instance now implements both
+ * createOrder and refund).
  */
 @Module({
   imports: [IdentityModule],
@@ -75,6 +92,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
     OrdersController,
     RazorpayWebhookController,
     VendorOrdersController,
+    ReturnsController,
   ],
   providers: [
     GetCartUseCase,
@@ -88,6 +106,9 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
     ListVendorOrderLinesUseCase,
     ShipOrderLineUseCase,
     DeliverShipmentUseCase,
+    RequestReturnUseCase,
+    ApproveReturnUseCase,
+    RejectReturnUseCase,
     CartPricingService,
     JwtAuthGuard,
     { provide: CART_REPOSITORY, useClass: PrismaCartRepository },
@@ -108,6 +129,11 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
     {
       provide: VENDOR_ORDER_LINE_VIEW_REPOSITORY,
       useClass: PrismaVendorOrderLineViewRepository,
+    },
+    { provide: RETURN_REPOSITORY, useClass: PrismaReturnRepository },
+    {
+      provide: ORDERS_USER_ROLES_REPOSITORY,
+      useClass: PrismaOrdersUserRolesRepository,
     },
     { provide: PAYMENT_GATEWAY, useClass: StubRazorpayGateway },
     { provide: WEBHOOK_SIGNATURE_VERIFIER, useClass: RazorpayWebhookSigner },

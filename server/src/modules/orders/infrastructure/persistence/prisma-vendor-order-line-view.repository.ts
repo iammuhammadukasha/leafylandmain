@@ -42,16 +42,30 @@ export class PrismaVendorOrderLineViewRepository implements VendorOrderLineViewR
       shipments.map((s) => [s.orderId, s.status]),
     );
 
-    const items: VendorOrderLineView[] = rows.map((row) => ({
-      orderLineId: row.id,
-      orderId: row.orderId,
-      productVariantId: row.productVariantId,
-      quantity: row.quantity,
-      unitPriceMinor: row.unitPriceMinor,
-      lineStatus: row.status,
-      shipmentStatus: shipmentByOrderId.get(row.orderId) ?? null,
-      createdAt: row.createdAt,
-    }));
+    // FR-ORD-005 — join in each line's Return row, if any (at most one per
+    // line, Return.orderLineId is DB-unique), so the vendor-orders UI can
+    // show/act on pending return requests without a separate endpoint.
+    const lineIds = rows.map((r) => r.id);
+    const returns = await this.prisma.return.findMany({
+      where: { orderLineId: { in: lineIds }, deletedAt: null },
+    });
+    const returnByLineId = new Map(returns.map((r) => [r.orderLineId, r]));
+
+    const items: VendorOrderLineView[] = rows.map((row) => {
+      const returnRow = returnByLineId.get(row.id);
+      return {
+        orderLineId: row.id,
+        orderId: row.orderId,
+        productVariantId: row.productVariantId,
+        quantity: row.quantity,
+        unitPriceMinor: row.unitPriceMinor,
+        lineStatus: row.status,
+        shipmentStatus: shipmentByOrderId.get(row.orderId) ?? null,
+        createdAt: row.createdAt,
+        returnId: returnRow?.id ?? null,
+        returnStatus: returnRow?.status ?? null,
+      };
+    });
 
     return { items, total };
   }

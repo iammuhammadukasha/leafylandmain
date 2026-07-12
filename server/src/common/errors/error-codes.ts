@@ -47,6 +47,11 @@ export const ProductErrorCode = {
 // (422 BUSINESS_RULE_VIOLATION-style state-machine rejections), consistent
 // with the task's "pick a sensible error code consistent with existing
 // Orders error codes" instruction.
+// RETURN_WINDOW_EXPIRED is FR-ORD-005's one documented code (API Spec §6.4
+// literal table). RETURN_NOT_REQUESTED and RETURN_ALREADY_EXISTS are
+// additions beyond that literal list, same "consistent with existing Orders
+// error codes" precedent as ORDER_NOT_PAID/SHIPMENT_NOT_SHIPPED were for
+// FR-ORD-006 (see the comment below their definitions).
 export const OrderErrorCode = {
   CART_EMPTY: 'CART_EMPTY',
   PRICE_CHANGED: 'PRICE_CHANGED',
@@ -55,6 +60,9 @@ export const OrderErrorCode = {
   INVALID_WEBHOOK_SIGNATURE: 'INVALID_WEBHOOK_SIGNATURE',
   ORDER_NOT_PAID: 'ORDER_NOT_PAID',
   SHIPMENT_NOT_SHIPPED: 'SHIPMENT_NOT_SHIPPED',
+  RETURN_WINDOW_EXPIRED: 'RETURN_WINDOW_EXPIRED',
+  RETURN_NOT_REQUESTED: 'RETURN_NOT_REQUESTED',
+  RETURN_ALREADY_EXISTS: 'RETURN_ALREADY_EXISTS',
 } as const;
 
 export type ErrorCode =

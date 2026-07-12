@@ -147,3 +147,83 @@ export class ShipmentNotShippedError extends Error {
     this.name = 'ShipmentNotShippedError';
   }
 }
+
+// --- FR-ORD-005: returns & refunds ---------------------------------------
+
+/** POST /returns/:id/approve|reject — the return does not exist at all.
+ * Distinct from ReturnForbiddenError, same 404-vs-403 no-leak split as
+ * OrderLineNotFoundError/OrderLineForbiddenError above. */
+export class ReturnNotFoundError extends Error {
+  constructor() {
+    super('Return not found.');
+    this.name = 'ReturnNotFoundError';
+  }
+}
+
+/** POST /returns/:id/approve|reject — the return exists but the caller is
+ * neither the owning vendor (owner/staff) nor an admin. Mapped to 403
+ * FORBIDDEN with a generic message, never leaking which vendor owns it. */
+export class ReturnForbiddenError extends Error {
+  constructor() {
+    super('You are not authorized to act on this return.');
+    this.name = 'ReturnForbiddenError';
+  }
+}
+
+/** POST /returns/:id/approve|reject — the return exists but is not in
+ * `requested` status (already approved/rejected/refunded). Approve/reject
+ * are only valid on a freshly `requested` return — this is the
+ * state-machine ordering guard, same discipline as
+ * ShipmentNotShippedError. */
+export class ReturnNotRequestedError extends Error {
+  constructor() {
+    super('This return has already been resolved.');
+    this.name = 'ReturnNotRequestedError';
+  }
+}
+
+/** POST /lines/:orderLineId/return — API Spec §6 module error code
+ * RETURN_WINDOW_EXPIRED (§6.4). Thrown both when the line is not yet
+ * `fulfilled` (nothing to return — a pending/non-existent-status line was
+ * never delivered) and when the 7-day platform-wide window (task brief's
+ * documented simplification, see schema.prisma's Return model doc comment)
+ * has elapsed since delivery — both are "you can't return this right now"
+ * business-rule violations, collapsed to the ONE error code the API spec
+ * defines for this endpoint (no separate "ORDER_LINE_NOT_FULFILLED" code
+ * exists in Volume 07 §6.4's literal table, and inventing one beyond what's
+ * documented would violate Constitution §11.1 "do not invent requirements
+ * or endpoints not documented" applied to error codes). The message
+ * distinguishes the two cases for the caller even though the machine-
+ * readable code is shared. */
+export class ReturnWindowExpiredError extends Error {
+  constructor(
+    message = 'This order line is outside the return policy window.',
+  ) {
+    super(message);
+    this.name = 'ReturnWindowExpiredError';
+  }
+}
+
+/** POST /lines/:orderLineId/return — the order line does not belong to the
+ * calling user. Same no-leak 404 pattern as AddressForbiddenError (the
+ * interface layer maps this to the same 404 as "order line not found", not
+ * a distinct 403, since a buyer has no legitimate reason to learn that an
+ * order line id exists but belongs to someone else). */
+export class OrderLineNotOwnedError extends Error {
+  constructor() {
+    super('Order line not found.');
+    this.name = 'OrderLineNotOwnedError';
+  }
+}
+
+/** POST /lines/:orderLineId/return — a return already exists for this order
+ * line (Return.orderLineId is DB-unique, same "one per line" precedent as
+ * Review.orderLineId, Volume 04 §5). Mapped to 409 CONFLICT — this is a
+ * state conflict, not a validation or business-rule-window problem, so it
+ * gets its own code distinct from RETURN_WINDOW_EXPIRED. */
+export class ReturnAlreadyExistsError extends Error {
+  constructor() {
+    super('A return has already been requested for this order line.');
+    this.name = 'ReturnAlreadyExistsError';
+  }
+}
