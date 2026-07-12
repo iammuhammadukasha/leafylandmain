@@ -43,24 +43,24 @@ export type SubmitReviewResult = ReviewProps;
  * critical rule this whole module exists to prove (BRS §7 rule 4,
  * "verified buyer only"): a caller may only review a product using an
  * order line that (a) exists, (b) belongs to them, (c) is for a variant of
- * THIS product, and (d) belongs to an order that has actually been paid.
- * Any failure of (a)-(d) collapses to the single ReviewNotEligibleError —
- * see that error's doc comment for why the reasons are never distinguished
- * in the response.
+ * THIS product, and (d) has actually been fulfilled (delivered). Any
+ * failure of (a)-(d) collapses to the single ReviewNotEligibleError — see
+ * that error's doc comment for why the reasons are never distinguished in
+ * the response.
  *
- * DOCUMENTED DEVIATION from API Spec §5.3's literal wording ("verifies
- * orderLineId belongs to caller and is fulfilled"): this slice gates on
- * the containing order's status being `paid`, not the order_line's status
- * being `fulfilled`. Orders' current scope (see orders/schema.prisma
- * header comments) only ever drives an order to `paid` — shipping/
- * delivery/fulfillment (FR-ORD-006) doesn't exist yet, so `order_lines`
- * never reaches `fulfilled` in this system. Gating on the literal spec
- * wording would make reviews permanently impossible for every order ever
- * placed. This is a deliberate, documented scope adaptation to be revisited
- * once FR-ORD-006 ships and "fulfilled" becomes a real, reachable state —
- * NOT a bug and NOT silent scope creep (Constitution §11.5: ambiguity
- * should be raised, not silently assumed — this doc comment IS that
- * disclosure, mirrored in the final report).
+ * UPDATED (FR-ORD-006 landed): this use case now gates eligibility on the
+ * order LINE's own status being `fulfilled` (`line.lineStatus ===
+ * 'fulfilled'`), matching API Spec §5.3's literal wording exactly. This
+ * REPLACES the prior, explicitly-documented deviation of gating on the
+ * containing order's status being `paid` — that deviation existed only
+ * because `order_lines.status` never advanced past `pending` before
+ * FR-ORD-006 shipped (no shipment/delivery flow existed to drive it
+ * there); DeliverShipmentUseCase now transitions a line to `fulfilled` on
+ * delivery, making the spec's literal wording finally satisfiable. THIS IS
+ * A REAL BEHAVIOR CHANGE to previously-committed code: a paid-but-not-yet-
+ * delivered order line that USED to be review-eligible is no longer
+ * eligible until the vendor ships AND delivers it — see the final report
+ * for the live re-verification of this exact change.
  *
  * Order-line facts are read via OrderLineLookupRepository — Product's own
  * narrow cross-context port over Orders' `order_lines`/`orders` tables
@@ -141,7 +141,7 @@ export class SubmitReviewUseCase {
     if (line.orderUserId !== userId) {
       throw new ReviewNotEligibleError();
     }
-    if (line.orderStatus !== 'paid') {
+    if (line.lineStatus !== 'fulfilled') {
       throw new ReviewNotEligibleError();
     }
 

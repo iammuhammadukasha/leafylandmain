@@ -13,17 +13,19 @@
  * existing `VendorLookupRepository`/`VendorDocumentLookupRepository`.
  *
  * DESIGN DECISION (read this before touching SubmitReviewUseCase): this
- * port surfaces `orderStatus` (the containing order's status) alongside
- * the line's own facts, because eligibility is gated on the *order's*
- * payment status (BR-ORD-01: `paid` is only ever set from a verified
- * Razorpay webhook), not the order_line's own `status` column (which this
- * slice never advances past `pending` — see schema.prisma's OrderLineStatus
- * comment; shipments/fulfillment, FR-ORD-006, isn't built). The API spec
- * (Volume 07 §5.3) says the line must be "fulfilled" — this is the
- * documented deviation described in SubmitReviewUseCase's doc comment:
- * we gate on `orderStatus === 'paid'` instead, since `fulfilled` never
- * occurs in the current system and gating on it would make reviews
- * permanently impossible.
+ * port surfaces BOTH `orderStatus` (the containing order's payment status,
+ * BR-ORD-01) and `lineStatus` (the order_line's own fulfillment status,
+ * FR-ORD-006). Historically (before FR-ORD-006 existed) this port only
+ * exposed `orderStatus` and SubmitReviewUseCase gated eligibility on
+ * `orderStatus === 'paid'` as a DOCUMENTED DEVIATION from the API spec's
+ * literal "fulfilled" wording, because `order_lines.status` never advanced
+ * past `pending` in this system (no shipment/delivery flow existed to
+ * drive it there). FR-ORD-006 now ships DeliverShipmentUseCase, which DOES
+ * advance a line to `fulfilled` on delivery — so `lineStatus` is now a
+ * real, reachable signal, and SubmitReviewUseCase has been updated to gate
+ * on `lineStatus === 'fulfilled'` (closing that deviation), keeping
+ * `orderStatus` on this port for potential future use / other callers
+ * rather than removing it.
  */
 export interface OrderLineSummary {
   id: string;
@@ -37,6 +39,7 @@ export interface OrderLineSummary {
     | 'delivered'
     | 'cancelled'
     | 'refunded';
+  lineStatus: 'pending' | 'fulfilled' | 'returned' | 'refunded';
 }
 
 export interface OrderLineLookupRepository {

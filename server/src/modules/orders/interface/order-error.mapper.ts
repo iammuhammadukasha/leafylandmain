@@ -12,9 +12,13 @@ import {
   InvalidWebhookSignatureError,
   OrderAlreadyPaidError,
   OrderForbiddenError,
+  OrderLineForbiddenError,
+  OrderLineNotFoundError,
   OrderNotFoundError,
+  OrderNotPaidError,
   OutOfStockError,
   ProductVariantNotAvailableError,
+  ShipmentNotShippedError,
 } from '../domain/errors/order.errors';
 
 /**
@@ -102,6 +106,34 @@ export function mapOrderError(error: unknown): AppException {
       OrderErrorCode.INVALID_WEBHOOK_SIGNATURE,
       error.message,
       HttpStatus.UNAUTHORIZED,
+    );
+  }
+  if (error instanceof OrderLineNotFoundError) {
+    return new AppException(
+      StandardErrorCode.NOT_FOUND,
+      error.message,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  if (error instanceof OrderLineForbiddenError) {
+    return new AppException(
+      StandardErrorCode.FORBIDDEN,
+      error.message,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+  if (error instanceof OrderNotPaidError) {
+    return new AppException(
+      OrderErrorCode.ORDER_NOT_PAID,
+      error.message,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    );
+  }
+  if (error instanceof ShipmentNotShippedError) {
+    return new AppException(
+      OrderErrorCode.SHIPMENT_NOT_SHIPPED,
+      error.message,
+      HttpStatus.UNPROCESSABLE_ENTITY,
     );
   }
 

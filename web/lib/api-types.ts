@@ -349,3 +349,35 @@ export interface QuestionResponse {
   updatedAt: string;
   answers: AnswerResponse[];
 }
+
+// Vendor order fulfillment (API Spec Volume 07 §6.3, FR-ORD-006).
+export interface VendorOrderLineResponse {
+  orderLineId: string;
+  orderId: string;
+  productVariantId: string;
+  quantity: number;
+  unitPriceMinor: string;
+  lineStatus: 'pending' | 'fulfilled' | 'returned' | 'refunded';
+  shipmentStatus: 'pending' | 'shipped' | 'delivered' | null;
+  createdAt: string;
+}
+
+export interface VendorOrderLineListMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ShipOrderLineRequest {
+  carrier: string;
+  trackingNumber: string;
+}
+
+export interface ShipmentResponse {
+  id: string;
+  orderId: string;
+  vendorId: string;
+  carrier: string | null;
+  trackingNumber: string | null;
+  status: 'pending' | 'shipped' | 'delivered';
+}

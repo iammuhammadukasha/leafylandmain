@@ -98,3 +98,52 @@ export class InvalidWebhookSignatureError extends Error {
     this.name = 'InvalidWebhookSignatureError';
   }
 }
+
+// --- FR-ORD-006: vendor order fulfillment -------------------------------
+
+/** GET/POST /vendors/me/orders/... — the order line does not exist at
+ * all. Distinct from OrderLineForbiddenError (exists but not this
+ * vendor's) so the interface layer can map "unknown id" to 404 while
+ * still no-leaking ownership via a separate 403 — same split as
+ * Order/OrderForbidden above. */
+export class OrderLineNotFoundError extends Error {
+  constructor() {
+    super('Order line not found.');
+    this.name = 'OrderLineNotFoundError';
+  }
+}
+
+/** The order line exists but belongs to a different vendor than the
+ * caller — FR-ID-006's "a vendor_staff token for Vendor A cannot read or
+ * mutate Vendor B's resources" AC, applied to order fulfillment. Mapped
+ * to 403 FORBIDDEN, never leaking whether the line exists for another
+ * vendor (message is generic). */
+export class OrderLineForbiddenError extends Error {
+  constructor() {
+    super('You are not authorized to act on this order line.');
+    this.name = 'OrderLineForbiddenError';
+  }
+}
+
+/** POST .../ship — API Spec §6 module error code ORDER_NOT_PAID. Only a
+ * `paid` order's lines are shippable (FR-ORD-002: a pending_payment order
+ * hasn't been paid for yet, nothing to fulfill). */
+export class OrderNotPaidError extends Error {
+  constructor() {
+    super('This order has not been paid yet and cannot be shipped.');
+    this.name = 'OrderNotPaidError';
+  }
+}
+
+/** POST .../deliver — API Spec §6 module error code SHIPMENT_NOT_SHIPPED.
+ * A shipment must exist and be in `shipped` status before it can be
+ * marked `delivered` (state-machine ordering: ship must precede deliver).
+ * Also covers "no shipment exists yet" (never shipped). */
+export class ShipmentNotShippedError extends Error {
+  constructor() {
+    super(
+      'This order line has not been shipped yet; ship it before marking it delivered.',
+    );
+    this.name = 'ShipmentNotShippedError';
+  }
+}

@@ -40,13 +40,21 @@ export const ProductErrorCode = {
   REVIEW_NOT_ELIGIBLE: 'REVIEW_NOT_ELIGIBLE',
 } as const;
 
-// Orders module-specific codes (API Spec §6).
+// Orders module-specific codes (API Spec §6). ORDER_NOT_PAID and
+// SHIPMENT_NOT_SHIPPED are FR-ORD-006 (vendor order fulfillment) additions
+// — not in the API spec's literal error table (§6, "Module error codes:"
+// list predates FR-ORD-006 implementation) but follow the same taxonomy
+// (422 BUSINESS_RULE_VIOLATION-style state-machine rejections), consistent
+// with the task's "pick a sensible error code consistent with existing
+// Orders error codes" instruction.
 export const OrderErrorCode = {
   CART_EMPTY: 'CART_EMPTY',
   PRICE_CHANGED: 'PRICE_CHANGED',
   OUT_OF_STOCK: 'OUT_OF_STOCK',
   ORDER_ALREADY_PAID: 'ORDER_ALREADY_PAID',
   INVALID_WEBHOOK_SIGNATURE: 'INVALID_WEBHOOK_SIGNATURE',
+  ORDER_NOT_PAID: 'ORDER_NOT_PAID',
+  SHIPMENT_NOT_SHIPPED: 'SHIPMENT_NOT_SHIPPED',
 } as const;
 
 export type ErrorCode =

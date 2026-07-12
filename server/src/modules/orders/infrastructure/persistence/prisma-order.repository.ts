@@ -29,13 +29,31 @@ export class PrismaOrderRepository implements OrderRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  /** FR-ORD-006 — Ship/DeliverShipmentUseCase look up the containing
+   * Order aggregate (with every sibling line loaded, for the ownership +
+   * fulfillLinesForVendor logic) starting from a single order_line id,
+   * the only identifier those endpoints' URLs carry. */
+  async findByOrderLineId(orderLineId: string): Promise<Order | null> {
+    const line = await this.prisma.orderLine.findUnique({
+      where: { id: orderLineId },
+    });
+    if (!line || line.deletedAt) {
+      return null;
+    }
+    return this.findById(line.orderId);
+  }
+
   /**
    * Order + OrderLines are written atomically. On first save (order not
    * yet in the DB) lines are created alongside the order — CheckoutUseCase
    * always creates a brand-new Order with its full line set in one call,
-   * so `createMany` for the lines is correct here (never a partial/merge
-   * update of existing lines in this slice — the webhook path only
-   * mutates order-level fields via `update`, never touches order_lines).
+   * so `createMany` for the lines is correct here. On update, existing
+   * lines' `status` is synced individually (FR-ORD-006:
+   * DeliverShipmentUseCase mutates line statuses via
+   * Order.fulfillLinesForVendor, and that needs to actually persist) —
+   * the webhook path still only touches order-level fields, but a plain
+   * per-line `update` for status is harmless/idempotent when nothing
+   * changed on a given line.
    */
   async save(order: Order): Promise<void> {
     const props = order.snapshot;
@@ -88,6 +106,13 @@ export class PrismaOrderRepository implements OrderRepository {
           version: { increment: 1 },
         },
       });
+
+      for (const line of props.lines) {
+        await tx.orderLine.update({
+          where: { id: line.id },
+          data: { status: line.status },
+        });
+      }
     });
   }
 

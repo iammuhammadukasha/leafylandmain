@@ -75,12 +75,13 @@ function orderLine(
     orderId: randomUUID(),
     orderUserId: 'buyer-1',
     orderStatus: 'paid',
+    lineStatus: 'fulfilled',
     ...overrides,
   };
 }
 
 describe('SubmitReviewUseCase', () => {
-  it('submits a review when the order line is owned by the caller, for this product, and paid', async () => {
+  it('submits a review when the order line is owned by the caller, for this product, and FULFILLED (FR-ORD-006)', async () => {
     const { useCase, products, variants, reviews, orderLineLookup } =
       buildUseCase();
     const { productId, variantId } = await seedProductWithVariant(
@@ -90,6 +91,7 @@ describe('SubmitReviewUseCase', () => {
     const line = orderLine({
       productVariantId: variantId,
       orderUserId: 'buyer-1',
+      lineStatus: 'fulfilled',
     });
     orderLineLookup.seed(line);
 
@@ -132,6 +134,7 @@ describe('SubmitReviewUseCase', () => {
       productVariantId: variantId,
       orderUserId: 'buyer-1',
       orderStatus: 'pending_payment',
+      lineStatus: 'pending',
     });
     orderLineLookup.seed(line);
 
@@ -142,6 +145,32 @@ describe('SubmitReviewUseCase', () => {
         orderLineId: line.id,
         rating: 3,
         body: 'unpaid order should not qualify',
+        ipAddress: null,
+      }),
+    ).rejects.toBeInstanceOf(ReviewNotEligibleError);
+  });
+
+  it('rejects with ReviewNotEligibleError when the order line is PAID but NOT YET FULFILLED (FR-ORD-006 behavior change — this is the case that used to be eligible under the old orderStatus===paid deviation and now correctly is not)', async () => {
+    const { useCase, products, variants, orderLineLookup } = buildUseCase();
+    const { productId, variantId } = await seedProductWithVariant(
+      products,
+      variants,
+    );
+    const line = orderLine({
+      productVariantId: variantId,
+      orderUserId: 'buyer-1',
+      orderStatus: 'paid',
+      lineStatus: 'pending',
+    });
+    orderLineLookup.seed(line);
+
+    await expect(
+      useCase.execute({
+        userId: 'buyer-1',
+        productId,
+        orderLineId: line.id,
+        rating: 3,
+        body: 'paid but not shipped/delivered yet should not qualify',
         ipAddress: null,
       }),
     ).rejects.toBeInstanceOf(ReviewNotEligibleError);

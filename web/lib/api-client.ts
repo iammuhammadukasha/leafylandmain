@@ -29,10 +29,14 @@ import {
   type RegisterVendorRequest,
   type ReviewListMeta,
   type ReviewResponse,
+  type ShipmentResponse,
+  type ShipOrderLineRequest,
   type UpdateCartLineRequest,
   type UpdateProductRequest,
   type UpdateVendorRequest,
   type VendorDocumentResponse,
+  type VendorOrderLineListMeta,
+  type VendorOrderLineResponse,
   type VendorResponse,
   type VerifyEmailRequest,
   type VerifyEmailResponse,
@@ -350,4 +354,47 @@ export const ordersApi = {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}` },
     }),
+};
+
+// Vendor order fulfillment (API Spec Volume 07 §6.3, FR-ORD-006).
+export const vendorOrdersApi = {
+  listMyOrderLines: (
+    accessToken: string,
+    params?: { page?: number; pageSize?: number },
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+    const qs = query.toString();
+    return requestWithMeta<VendorOrderLineResponse[], VendorOrderLineListMeta>(
+      `/api/v1/vendors/me/orders${qs ? `?${qs}` : ''}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+  },
+
+  shipOrderLine: (
+    accessToken: string,
+    orderLineId: string,
+    payload: ShipOrderLineRequest,
+  ) =>
+    request<ShipmentResponse>(
+      `/api/v1/vendors/me/orders/${orderLineId}/ship`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  deliverOrderLine: (accessToken: string, orderLineId: string) =>
+    request<ShipmentResponse>(
+      `/api/v1/vendors/me/orders/${orderLineId}/deliver`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    ),
 };

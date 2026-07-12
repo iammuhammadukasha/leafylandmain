@@ -15,6 +15,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     return Promise.resolve(found ?? null);
   }
 
+  findByOrderLineId(orderLineId: string): Promise<Order | null> {
+    const found = [...this.store.values()].find((order) =>
+      order.lines.some((line) => line.id === orderLineId),
+    );
+    return Promise.resolve(found ?? null);
+  }
+
   save(order: Order): Promise<void> {
     this.store.set(order.id, order);
     return Promise.resolve();

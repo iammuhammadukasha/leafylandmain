@@ -11,6 +11,13 @@ export interface OrderRepository {
    * platform id — that's the only identifier the webhook payload carries
    * (FR-ORD-003). */
   findByRazorpayOrderId(razorpayOrderId: string): Promise<Order | null>;
+  /** FR-ORD-006 — resolves an order line id back to its containing Order
+   * aggregate (with all sibling lines loaded), so Ship/Deliver use cases
+   * can check ownership/status and call Order's line-status-transition
+   * methods without a separate OrderLine repository (OrderLine has no
+   * existence independent of its Order — same "aggregate owns its lines"
+   * modeling as the rest of this entity, see its class doc comment). */
+  findByOrderLineId(orderLineId: string): Promise<Order | null>;
   save(order: Order): Promise<void>;
 }
 

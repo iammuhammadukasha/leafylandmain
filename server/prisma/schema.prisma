@@ -3,8 +3,8 @@
 // Vendor context (Volume 04 §4, registration/verification/store-profile +
 // minimal vendor_documents) + Product Marketplace context (Volume 04 §5,
 // categories/products/variants vertical slice) + Orders context (Volume 04
-// §6, cart/checkout/webhook-payment vertical slice — see that section's
-// header comment below for exact scope/deferrals).
+// §6, cart/checkout/webhook-payment/vendor-fulfillment vertical slice — see
+// that section's header comment below for exact scope/deferrals).
 //
 // Vendor context slice covers FR-VND-001 (register), FR-VND-002 (admin
 // verify), FR-VND-003 (store profile update via PATCH /vendors/me),
@@ -107,14 +107,22 @@ enum OrderStatus {
   refunded
 }
 
-// Volume 04 §6 order_lines.status. Only `pending` is set/read by this
-// slice; fulfilled/returned/refunded are deferred along with
-// shipments/returns tables (FR-ORD-005/006).
+// Volume 04 §6 order_lines.status. `fulfilled` is now reachable via
+// FR-ORD-006 (DeliverShipmentUseCase transitions a vendor's order lines to
+// fulfilled when their shipment reaches `delivered`). `returned`/`refunded`
+// remain deferred along with the `returns` table (FR-ORD-005).
 enum OrderLineStatus {
   pending
   fulfilled
   returned
   refunded
+}
+
+// Volume 04 §6 shipments.status (FR-ORD-006).
+enum ShipmentStatus {
+  pending
+  shipped
+  delivered
 }
 
 // ---------------------------------------------------------------------------
@@ -575,15 +583,15 @@ model Answer {
 
 // ---------------------------------------------------------------------------
 // Orders context (Volume 04 §6) — cart + checkout + webhook-verified payment
-// vertical slice (FR-ORD-001/002/003, BR-ORD-01). Scope reductions vs the
-// full doc, all deliberate (task instruction, not doc omission):
+// + vendor order fulfillment vertical slice (FR-ORD-001/002/003/006,
+// BR-ORD-01). Scope reductions vs the full doc, all deliberate (task
+// instruction, not doc omission):
 //
 //  - Guest cart (nullable carts.user_id, cart merge-on-login) is NOT
 //    modeled — `Cart.userId` is required (Auth-only cart per this slice).
-//  - `invoices`, `shipments`, `returns` tables are NOT modeled — defers
-//    FR-ORD-004 (invoices), FR-ORD-005 (returns/refunds), FR-ORD-006
-//    (shipping/tracking) and the whole "vendor order fulfillment" API
-//    (Volume 07 §6.3) in full, not just partially.
+//  - `invoices`, `returns` tables are NOT modeled — defers FR-ORD-004
+//    (invoices) and FR-ORD-005 (returns/refunds). `shipments` IS now
+//    modeled (FR-ORD-006 — see the Shipment model below).
 //  - Coupons/offers do not exist yet (Product Marketplace slice didn't
 //    model them either), so `orders` has no couponCode/discount columns —
 //    not a doc omission, coupons simply aren't buildable yet.
@@ -655,6 +663,7 @@ model Order {
   shippingAddress Address     @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
   billingAddress  Address     @relation("OrderBillingAddress", fields: [billingAddressId], references: [id])
   lines           OrderLine[]
+  shipments       Shipment[]
 
   @@index([userId])
   @@index([razorpayOrderId])
@@ -685,4 +694,34 @@ model OrderLine {
   @@index([vendorId])
   @@index([productVariantId])
   @@map("order_lines")
+}
+
+// FR-ORD-006 (Volume 04 §6 `shipments` table) — vendor order fulfillment.
+// "One shipment per vendor per order" per the ERD note: a multi-vendor
+// order has one Shipment row per distinct vendorId among its order_lines,
+// covering every line that vendor contributed to that order (grouping
+// decision documented in ShipOrderLineUseCase's doc comment). No FK to
+// OrderLine (a shipment covers a set of lines, not one line) — orderId +
+// vendorId is the grouping key, enforced unique below.
+model Shipment {
+  id             String         @id @default(uuid()) @db.Uuid
+  orderId        String         @map("order_id") @db.Uuid
+  vendorId       String         @map("vendor_id") @db.Uuid
+  carrier        String?
+  trackingNumber String?        @map("tracking_number")
+  status         ShipmentStatus @default(pending)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@unique([orderId, vendorId])
+  @@index([orderId])
+  @@index([vendorId])
+  @@map("shipments")
 }

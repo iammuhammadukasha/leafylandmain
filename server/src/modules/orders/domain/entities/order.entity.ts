@@ -140,4 +140,25 @@ export class Order {
     this.props.paidAt = now;
     this.props.updatedAt = now;
   }
+
+  /** FR-ORD-006 — DeliverShipmentUseCase calls this once its Shipment
+   * transitions to `delivered`, for every order_line belonging to that
+   * vendor on this order (a shipment covers all of one vendor's lines on
+   * one order, see Shipment entity's doc comment — so "the shipment was
+   * delivered" fulfills every line it covers, not just one). Only
+   * transitions lines currently `pending` -> `fulfilled`; lines already
+   * `returned`/`refunded` are left alone (a line that was returned before
+   * delivery is not un-returned by a late delivery scan — defensive, not
+   * reachable in this slice since returns, FR-ORD-005, aren't built yet).
+   * Domain-level invariant: this is the ONLY method that advances
+   * order_lines.status to `fulfilled`, mirroring markPaid's role as the
+   * only path to `paid` (BR-ORD-01's same discipline applied here). */
+  fulfillLinesForVendor(vendorId: string, now: Date): void {
+    for (const line of this.props.lines) {
+      if (line.vendorId === vendorId && line.status === 'pending') {
+        line.status = 'fulfilled';
+      }
+    }
+    this.props.updatedAt = now;
+  }
 }

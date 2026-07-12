@@ -7,6 +7,10 @@ import type {
   AddressSummary,
 } from '../../../domain/repositories/address-lookup.repository';
 import type {
+  OrdersVendorSummary,
+  VendorLookupRepository,
+} from '../../../domain/repositories/vendor-lookup.repository';
+import type {
   CreateGatewayOrderInput,
   CreateGatewayOrderResult,
   PaymentGatewayPort,
@@ -86,5 +90,21 @@ export class FakeAuditLogger implements AuditLogger {
   record(event: AuditEvent): Promise<void> {
     this.events.push(event);
     return Promise.resolve();
+  }
+}
+
+/** In-memory stand-in for Orders' own cross-context VendorLookupRepository
+ * port (FR-ORD-006). Seed with `.seed(summary)`. */
+export class FakeOrdersVendorLookupRepository implements VendorLookupRepository {
+  private readonly vendors: OrdersVendorSummary[] = [];
+
+  seed(vendor: OrdersVendorSummary): void {
+    this.vendors.push(vendor);
+  }
+
+  findByOwnerUserId(ownerUserId: string): Promise<OrdersVendorSummary | null> {
+    return Promise.resolve(
+      this.vendors.find((v) => v.ownerUserId === ownerUserId) ?? null,
+    );
   }
 }

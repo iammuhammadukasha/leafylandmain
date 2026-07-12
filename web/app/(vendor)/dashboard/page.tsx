@@ -41,6 +41,11 @@ export default function VendorDashboardPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-6">
       <h1 className="text-2xl font-semibold">Vendor Dashboard</h1>
 
+      <nav className="flex gap-4 text-sm underline">
+        <Link href="/vendor-products">My Products</Link>
+        <Link href="/vendor-orders">My Orders</Link>
+      </nav>
+
       {vendorQuery.isLoading && <p>Loading vendor…</p>}
 
       {vendorQuery.isError && (

@@ -34,6 +34,7 @@ export class PrismaOrderLineLookupRepository implements OrderLineLookupRepositor
       orderUserId: row.order.userId,
       productVariantId: row.productVariantId,
       orderStatus: row.order.status,
+      lineStatus: row.status,
     };
   }
 }
